@@ -28,7 +28,7 @@ jobs:
           # Real org ids (00D + 12-15 alnum), real instance hosts, generated artefacts.
           # Fixture hosts (acme/example/test/myorg) are explicitly allowed.
           PAT='00D[A-Za-z0-9]{12,15}|https://(?!acme|example|test|myorg|www)[a-z0-9-]+\.my\.salesforce\.com|\.sandbox\.my\.salesforce\.com'
-          if git grep -PInE "$PAT" -- . ':!*.test.ts' ':!.github/workflows/guard-org-data.yml' ; then
+          if git grep -InE "$PAT" -- . ':!*.test.ts' ':!.github/workflows/guard-org-data.yml' ; then
             echo "::error::Content appears to reference a real Salesforce org."
             exit 1
           fi
@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           PAT='00D[A-Za-z0-9]{12,15}|\.sandbox\.my\.salesforce\.com'
-          if git log --format='%H%n%s%n%b' | grep -PInE "$PAT" ; then
+          if git log --format='%H%n%s%n%b' | grep -InE "$PAT" ; then
             echo "::error::A commit message references a real Salesforce org."
             exit 1
           fi
