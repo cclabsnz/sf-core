@@ -68,5 +68,14 @@
     "access": "public",
     "provenance": true
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "overrides": {
+      "form-data": "^4.0.6",
+      "js-yaml@3": "^3.15.0",
+      "handlebars": "^4.7.9",
+      "brace-expansion": "^5.0.8",
+      "fast-uri@3": "^3.1.4"
+    }
+  }
 }
