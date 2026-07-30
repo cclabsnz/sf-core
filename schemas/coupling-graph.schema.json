@@ -99,6 +99,19 @@
           "recordCount90d": {
             "type": "integer",
             "minimum": 0
+          },
+          "layer": {
+            "type": "string",
+            "enum": [
+              "integration",
+              "configuration",
+              "business",
+              "content",
+              "sharing",
+              "security",
+              "observability"
+            ],
+            "description": "Architectural layer, ordered from the business core outwards. Optional for back-compatibility with documents emitted before the field existed; current emitters always set it."
           }
         }
       }

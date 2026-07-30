@@ -27,11 +27,30 @@ export interface CouplingGraphProvenance {
   evidenceTier: EvidenceTier | null;
 }
 
+/**
+ * Architectural layer of an object, ordered from the business core outwards.
+ *
+ * A real org's coupling graph is dominated by objects carrying no business process — identity,
+ * logging, custom metadata — because Apex references them constantly. The layer lets a consumer
+ * separate those without reimplementing the classifier, and without discarding them: on a
+ * production org, business-to-security was the second-heaviest relationship in the graph.
+ */
+export type ObjectLayer =
+  | 'integration'
+  | 'configuration'
+  | 'business'
+  | 'content'
+  | 'sharing'
+  | 'security'
+  | 'observability';
+
 export interface CouplingGraphNode {
   object: string;
   custom: boolean;
   automationCounts: { flows: number; triggers: number; approvals: number };
   recordCount90d: number;
+  /** Optional for back-compatibility; current emitters always set it. */
+  layer?: ObjectLayer;
 }
 
 export interface CouplingComponentRef {
