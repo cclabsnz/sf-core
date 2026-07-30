@@ -17,7 +17,14 @@ export interface CouplingGraphProvenance {
   toolVersion: string;
   generatedAt: string;
   orgId: string;
-  evidenceTier: EvidenceTier;
+  /**
+   * Tier measured by `intel probe`, or null when no probe has graded this org.
+   *
+   * Nullable rather than optional on purpose: a reader that forgets null gets a loud
+   * undefined, whereas an absent key reads as "no tier information" — the same ambiguity
+   * that let `intel map` stamp a fabricated 'C' into published IR.
+   */
+  evidenceTier: EvidenceTier | null;
 }
 
 export interface CouplingGraphNode {

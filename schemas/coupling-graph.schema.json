@@ -5,19 +5,54 @@
   "description": "Object-pair coupling graph emitted by `sf intel map`. Nodes are Salesforce objects; edges are aggregated cross-object couplings derived from flows, triggers, and Apex.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "provenance", "nodes", "edges"],
+  "required": [
+    "version",
+    "provenance",
+    "nodes",
+    "edges"
+  ],
   "properties": {
-    "version": { "const": 1 },
+    "version": {
+      "const": 1
+    },
     "provenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "toolVersion", "generatedAt", "orgId", "evidenceTier"],
+      "required": [
+        "tool",
+        "toolVersion",
+        "generatedAt",
+        "orgId",
+        "evidenceTier"
+      ],
       "properties": {
-        "tool": { "const": "orgintel" },
-        "toolVersion": { "type": "string" },
-        "generatedAt": { "type": "string", "format": "date-time" },
-        "orgId": { "type": "string" },
-        "evidenceTier": { "type": "string", "enum": ["A", "B", "C", "D"] }
+        "tool": {
+          "const": "orgintel"
+        },
+        "toolVersion": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "orgId": {
+          "type": "string"
+        },
+        "evidenceTier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            null
+          ],
+          "description": "Evidence tier measured by `intel probe`, or null when no probe has graded this org. Null means not measured \u2014 never assume a default."
+        }
       }
     },
     "nodes": {
@@ -25,21 +60,46 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["object", "custom", "automationCounts", "recordCount90d"],
+        "required": [
+          "object",
+          "custom",
+          "automationCounts",
+          "recordCount90d"
+        ],
         "properties": {
-          "object": { "type": "string" },
-          "custom": { "type": "boolean" },
+          "object": {
+            "type": "string"
+          },
+          "custom": {
+            "type": "boolean"
+          },
           "automationCounts": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["flows", "triggers", "approvals"],
+            "required": [
+              "flows",
+              "triggers",
+              "approvals"
+            ],
             "properties": {
-              "flows": { "type": "integer", "minimum": 0 },
-              "triggers": { "type": "integer", "minimum": 0 },
-              "approvals": { "type": "integer", "minimum": 0 }
+              "flows": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "triggers": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "approvals": {
+                "type": "integer",
+                "minimum": 0
+              }
             }
           },
-          "recordCount90d": { "type": "integer", "minimum": 0 }
+          "recordCount90d": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
@@ -48,25 +108,60 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["from", "to", "weight", "operations", "components"],
+        "required": [
+          "from",
+          "to",
+          "weight",
+          "operations",
+          "components"
+        ],
         "properties": {
-          "from": { "type": "string" },
-          "to": { "type": "string" },
-          "weight": { "type": "integer", "minimum": 0 },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0
+          },
           "operations": {
             "type": "array",
-            "items": { "type": "string", "enum": ["read", "create", "update", "delete"] }
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "create",
+                "update",
+                "delete"
+              ]
+            }
           },
           "components": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["type", "name", "confidence"],
+              "required": [
+                "type",
+                "name",
+                "confidence"
+              ],
               "properties": {
-                "type": { "type": "string" },
-                "name": { "type": "string" },
-                "confidence": { "type": "string", "enum": ["high", "approximate"] }
+                "type": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "string",
+                  "enum": [
+                    "high",
+                    "approximate"
+                  ]
+                }
               }
             }
           }
