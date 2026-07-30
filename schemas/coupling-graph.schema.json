@@ -177,6 +177,15 @@
                 }
               }
             }
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "from-to",
+              "to-from",
+              "both"
+            ],
+            "description": "Process order, where a record-triggered flow or Apex trigger established it: which of the pair acts on the other. Absent means no directional evidence \u2014 not the same as undirected."
           }
         }
       }

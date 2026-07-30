@@ -59,12 +59,25 @@ export interface CouplingComponentRef {
   confidence: CouplingConfidence;
 }
 
+/**
+ * Which way a directional coupling runs, relative to the canonical `from`/`to` pair.
+ *
+ * Recorded as evidence *about* the pair rather than by reordering it, so a consumer that only
+ * cares about coupling is unaffected while one reconstructing process order can follow it.
+ */
+export type CouplingDirection = 'from-to' | 'to-from' | 'both';
+
 export interface CouplingGraphEdge {
   from: string;
   to: string;
   weight: number;
   operations: CouplingOperation[];
   components: CouplingComponentRef[];
+  /**
+   * Process order where a record-triggered flow or Apex trigger established it. Absent means
+   * no directional evidence was found, which is not the same as the coupling being undirected.
+   */
+  direction?: CouplingDirection;
 }
 
 export interface CouplingGraph {
