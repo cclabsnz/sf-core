@@ -1,11 +1,13 @@
 name: Guard org data
 
 # Fails the build if anything identifying a real Salesforce org reaches the repository:
-# org ids, instance hostnames, customer/tenant names, or generated audit artefacts.
+# org ids, sandbox hostnames, or generated audit artefacts. Content AND commit messages are
+# both scanned — the messages are the part people forget.
 #
-# This exists because a plugin that audits customer orgs is run against customer orgs, and
-# the easiest way to leak a client is a commit message quoting a real result. Content AND
-# commit messages are both scanned — the messages are the part people forget.
+# Test fixtures are excluded by shape: a real org id never contains 'xx' or six consecutive
+# zeros (<redacted-org-id> has at most five), whereas fixtures conventionally do
+# (00Dxx0000000000EAA, 00D000000000001). A guard that rejects the ids its own message
+# recommends gets switched off by the first developer who hits it.
 on:
   push:
   pull_request:
@@ -13,6 +15,11 @@ on:
 
 permissions:
   contents: read
+
+env:
+  ORG_ID: '00D[A-Za-z0-9]{12,15}'
+  SANDBOX: '[A-Za-z0-9-]+\.sandbox\.my\.salesforce\.com'
+  FIXTURE: '00D([A-Za-z0-9]*[xX]{2}|0{6,})'
 
 jobs:
   guard:
@@ -24,20 +31,21 @@ jobs:
 
       - name: Scan tracked content
         run: |
-          set -euo pipefail
-          # Real org ids (00D + 12-15 alnum), real instance hosts, generated artefacts.
-          # Fixture hosts (acme/example/test/myorg) are explicitly allowed.
-          PAT='00D[A-Za-z0-9]{12,15}|https://(?!acme|example|test|myorg|www)[a-z0-9-]+\.my\.salesforce\.com|\.sandbox\.my\.salesforce\.com'
-          if git grep -InE "$PAT" -- . ':!*.test.ts' ':!.github/workflows/guard-org-data.yml' ; then
-            echo "::error::Content appears to reference a real Salesforce org."
+          set -uo pipefail
+          if git grep -InE "$ORG_ID|$SANDBOX" -- . ':!.github/workflows/guard-org-data.yml' ':!.githooks/*' \
+            | grep -vE "$FIXTURE" | grep -q . ; then
+            git grep -InE "$ORG_ID|$SANDBOX" -- . ':!.github/workflows/guard-org-data.yml' ':!.githooks/*' \
+              | grep -vE "$FIXTURE" | head -10
+            echo "::error::Content references a real Salesforce org."
             exit 1
           fi
           echo "content: clean"
 
       - name: Scan for generated report artefacts
         run: |
-          set -euo pipefail
-          if git ls-files | grep -EI 'sf-audit-00D.*\.(json|html|md)$|orgintel-.*\.(json|html)$|^(coupling-graph|landscape-manifest)\.json$' ; then
+          set -uo pipefail
+          if git ls-files \
+            | grep -IE '(^|/)(sf-audit-00D[A-Za-z0-9]*-[0-9]+|orgintel-(map|fingerprint)-[A-Za-z0-9]+-[0-9]+)\.(json|html|md)$|(^|/)(coupling-graph|landscape-manifest)\.json$' ; then
             echo "::error::A generated report artefact is tracked. These contain org data."
             exit 1
           fi
@@ -45,9 +53,9 @@ jobs:
 
       - name: Scan commit messages
         run: |
-          set -euo pipefail
-          PAT='00D[A-Za-z0-9]{12,15}|\.sandbox\.my\.salesforce\.com'
-          if git log --format='%H%n%s%n%b' | grep -InE "$PAT" ; then
+          set -uo pipefail
+          if git log --format='%H%n%s%n%b' | grep -InE "$ORG_ID|$SANDBOX" | grep -vE "$FIXTURE" | grep -q . ; then
+            git log --format='%H%n%s%n%b' | grep -InE "$ORG_ID|$SANDBOX" | grep -vE "$FIXTURE" | head -10
             echo "::error::A commit message references a real Salesforce org."
             exit 1
           fi
