@@ -19,7 +19,7 @@ permissions:
 env:
   ORG_ID: '00D[A-Za-z0-9]{12,15}'
   SANDBOX: '[A-Za-z0-9-]+\.sandbox\.my\.salesforce\.com'
-  FIXTURE: '00D([A-Za-z0-9]*[xX]{2}|0{6,})'
+  FIXTURE: '00D[A-Za-z0-9]*([xX]{2}|0{6,})'
 
 jobs:
   guard:

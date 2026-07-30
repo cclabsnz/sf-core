@@ -12,7 +12,7 @@ set -u
 # that rejects the very id its own error message recommends gets disabled by the first
 # developer who hits it.
 ORG_ID='00D[A-Za-z0-9]{12,15}'
-FIXTURE_ID='00D([A-Za-z0-9]*[xX]{2}|0{6,})'
+FIXTURE_ID='00D[A-Za-z0-9]*([xX]{2}|0{6,})'
 SANDBOX_HOST='[A-Za-z0-9-]+\.sandbox\.my\.salesforce\.com'
 fail=0
 
