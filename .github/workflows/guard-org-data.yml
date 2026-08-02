@@ -5,7 +5,7 @@ name: Guard org data
 # both scanned — the messages are the part people forget.
 #
 # Test fixtures are excluded by shape: a real org id never contains 'xx' or six consecutive
-# zeros (<redacted-org-id> has at most five), whereas fixtures conventionally do
+# zeros, whereas fixtures conventionally do
 # (00Dxx0000000000EAA, 00D000000000001). A guard that rejects the ids its own message
 # recommends gets switched off by the first developer who hits it.
 on:
@@ -32,9 +32,9 @@ jobs:
       - name: Scan tracked content
         run: |
           set -uo pipefail
-          if git grep -InE "$ORG_ID|$SANDBOX" -- . ':!.github/workflows/guard-org-data.yml' ':!.githooks/*' \
+          if git grep -InE "$ORG_ID|$SANDBOX" -- . \
             | grep -vE "$FIXTURE" | grep -q . ; then
-            git grep -InE "$ORG_ID|$SANDBOX" -- . ':!.github/workflows/guard-org-data.yml' ':!.githooks/*' \
+            git grep -InE "$ORG_ID|$SANDBOX" -- . \
               | grep -vE "$FIXTURE" | head -10
             echo "::error::Content references a real Salesforce org."
             exit 1

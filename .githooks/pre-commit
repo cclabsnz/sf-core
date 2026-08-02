@@ -8,7 +8,7 @@ set -u
 
 # A real org id is 00D + 12 or 15 more alphanumerics. Test fixtures conventionally use
 # 'xx' or a long run of zeros (00Dxx0000000000EAA, 00D000000000001); real ids never do —
-# <redacted-org-id> has at most five consecutive zeros. Excluding fixtures matters: a guard
+# six consecutive zeros. Excluding fixtures matters: a guard
 # that rejects the very id its own error message recommends gets disabled by the first
 # developer who hits it.
 ORG_ID='00D[A-Za-z0-9]{12,15}'
@@ -18,7 +18,6 @@ fail=0
 
 for f in $(git diff --cached --name-only --diff-filter=ACM); do
   case "$f" in
-    .githooks/*|.github/workflows/guard-org-data.yml) continue ;;
   esac
   if git show ":$f" 2>/dev/null | grep -InE "$ORG_ID|$SANDBOX_HOST" | grep -vE "$FIXTURE_ID" | grep -q .; then
     echo "pre-commit: $f references a real Salesforce org:" >&2
