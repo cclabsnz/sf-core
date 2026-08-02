@@ -20,4 +20,14 @@ describe('resolveBranding', () => {
     const b = resolveBranding({ preparedFor: 'File Co' }, 'Flag Co');
     expect(b.preparedFor).toBe('Flag Co');
   });
+
+  it('carries a website so reports can link back to the firm', () => {
+    expect(resolveBranding(undefined, undefined).website).toBe('cloudcounsel.co.nz');
+  });
+
+  it('lets a consulting firm point the website at their own domain', () => {
+    // Branding exists so someone other than CloudCounsel can ship these reports; a field
+    // that cannot be overridden would advertise the wrong firm on a client deliverable.
+    expect(resolveBranding({ website: 'acme.example' }, undefined).website).toBe('acme.example');
+  });
 });

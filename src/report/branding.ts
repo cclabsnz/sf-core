@@ -9,6 +9,8 @@ export interface Branding {
   fontDisplay: string;
   fontBody: string;
   contact: string;
+  /** Firm website, linked in report footers. Optional so an override may omit it entirely. */
+  website?: string;
   logoPath?: string;
   preparedFor?: string;
 }
@@ -24,6 +26,7 @@ export const DEFAULT_BRANDING: Branding = {
   fontDisplay: 'DM Serif Display',
   fontBody: 'DM Sans',
   contact: 'hello@cloudcounsel.co.nz',
+  website: 'cloudcounsel.co.nz',
 };
 
 export type BrandingOverrides = Partial<Branding>;
