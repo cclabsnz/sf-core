@@ -1,0 +1,32 @@
+# Socket.dev configuration — https://docs.socket.dev/docs/socket-yml
+#
+# Triage for the supply-chain alerts Socket raises against this package. Each is inherent to
+# what a local-first Salesforce audit library does; none is a vulnerability. They are
+# acknowledged here rather than silently ignored.
+version: 2
+
+projectIgnorePaths:
+  # Fixtures carry deliberately hostile-looking sample data used to assert detection logic.
+  - "test/**"
+
+issueRules:
+  # "Filesystem access" — expected, and confined to two callers.
+  #
+  #   src/events/EventBaselineStore.ts  reads and writes event-log baselines under the
+  #                                     operator's own ~/.sf/audit-history directory
+  #   src/api/RestClientImpl.ts         streams EventLogFile downloads to a path the
+  #                                     operator supplied
+  #
+  # There is no write outside a path the operator names or the tool's own dot-directory.
+  filesystemAccess: false
+
+  # "URL strings" — font attribution only.
+  #
+  # The three URLs in src are licence and provenance links carried alongside the embedded
+  # web fonts (SIL Open Font License, and the upstream repositories for DM Sans and Fira
+  # Code). They are inert text in a comment and a licence header; nothing fetches them.
+  #
+  # This package makes no outbound network call of its own. It talks to the authenticated
+  # Salesforce org its caller supplies, through a Connection the caller owns, and nothing
+  # else — enforced by the network-egress invariant test in the consuming plugin.
+  urlStrings: false

@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # npm ecosystem — Dependabot reads pnpm-lock.yaml automatically.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Wait before adopting a brand-new release. A compromised publish is usually caught and
+    # unpublished within days, and this package is a dependency of the audit tooling, so a bad
+    # version here reaches every consumer. Security advisories bypass the cooldown.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    # Group updates to cut PR noise; security fixes still arrive as their own PRs.
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
+  # Keep the GitHub Actions workflows current too.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Wait before adopting a brand-new release. A compromised publish is usually caught and
+    # unpublished within days, and this package is a dependency of the audit tooling, so a bad
+    # version here reaches every consumer. Security advisories bypass the cooldown.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: "chore(ci)"
