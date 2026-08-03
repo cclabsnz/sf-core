@@ -27,8 +27,18 @@ export type {
 
 // --- Event log ---
 export { EventBaselineStore } from './events/EventBaselineStore.js';
-export type { EventLogQueryOptions } from './events/eventLogQuery.js';
-export { sanitizeTypes, toLogDate, buildEventLogQuery } from './events/eventLogQuery.js';
+export type {
+  EventLogQueryOptions,
+  EventLogInterval,
+  EventLogWindow,
+} from './events/eventLogQuery.js';
+export {
+  sanitizeTypes,
+  toLogDate,
+  toLogHour,
+  buildEventLogQuery,
+  HOURLY_FORENSIC_CORE,
+} from './events/eventLogQuery.js';
 export type {
   EventLogFileRow,
   PulledLog,
@@ -36,8 +46,39 @@ export type {
   PullDeps,
   PullOptions,
 } from './events/pullEventLogs.js';
-export { pullEventLogs } from './events/pullEventLogs.js';
+export { pullEventLogs, MAX_FILE_BYTES } from './events/pullEventLogs.js';
 export { classifyEventLogAccessError } from './events/eventLogAccess.js';
+
+// --- Real-Time Event Monitoring ---
+export type { RteType } from './events/rteCatalog.js';
+export { RTE_CATALOG } from './events/rteCatalog.js';
+export type {
+  RealtimePullDeps,
+  RealtimePullOptions,
+  RealtimePullResult,
+} from './events/pullRealtimeEvents.js';
+export {
+  pullRealtimeEvents,
+  buildRealtimeQuery,
+  describeFields,
+  classifyRteError,
+} from './events/pullRealtimeEvents.js';
+
+// --- Capture coverage ---
+export type {
+  SkipReason,
+  CaptureCoverage,
+  CapturedElfFile,
+  SkippedElfFile,
+  CapturedRteObject,
+  UnavailableRteObject,
+} from './events/CaptureManifest.js';
+export {
+  SKIP_REASONS,
+  isSkipReason,
+  emptyCoverage,
+  readCoverageManifest,
+} from './events/CaptureManifest.js';
 
 // --- Report shell ---
 export type { Branding, BrandingOverrides } from './report/branding.js';

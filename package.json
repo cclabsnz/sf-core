@@ -1,6 +1,6 @@
 {
   "name": "@cclabsnz/sf-core",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Shared platform layer for CloudCounsel Salesforce sf plugins — API clients, org context, event log pull, report shell, and versioned IR schemas.",
   "license": "Apache-2.0",
   "type": "module",
