@@ -342,6 +342,20 @@ describe('RTE_CATALOG', () => {
     expect(RTE_CATALOG.find((e) => e.base === base)?.store).toBe(`${base}Store`);
   });
 
+  it('keeps the streaming-only types that can never be captured retroactively', () => {
+    // Their manifest entry is the point: "exists, cannot be read after the fact" is a
+    // different answer from "we did not look".
+    for (const base of ['ConcurLongRunApexErrEvent', 'OrgLifecycleNotification']) {
+      const entry = RTE_CATALOG.find((e) => e.base === base);
+      expect(entry).toBeDefined();
+      expect(entry?.store).toBeUndefined();
+    }
+  });
+
+  it('does not list ApexExecutionEvent — absent from describe in all five orgs probed', () => {
+    expect(RTE_CATALOG.find((e) => e.base === 'ApexExecutionEvent')).toBeUndefined();
+  });
+
   it('declares no Store that was verified absent', () => {
     // Every one of these 404'd on describe. A phantom Store is never reached when the base
     // is queryable, but it documents an object that does not exist.

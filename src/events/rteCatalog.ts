@@ -77,10 +77,9 @@ const ALL_PREFERRED = [...COMMON_FIELDS, ...EXFIL_FIELDS, ...CONTEXT_FIELDS];
  * harmless — but a catalog that documents objects which do not exist is worse than no
  * documentation, so they are gone.
  *
- * One caveat on the negative results: this is one org. An object absent here may be absent
- * only for this licence or edition, so bases stay listed even when unconfirmed — a wasted
- * describe costs one 404, while a missing entry costs evidence. Phantom *stores* are dropped
- * because they add nothing on either path.
+ * Re-probed across five orgs — two sandboxes and three production — on 2026-08-03. Every
+ * verdict was identical in all five, including the absences, so the negatives are no longer
+ * a single-org observation that a different licence might overturn.
  */
 export const RTE_CATALOG: readonly RteType[] = [
   // Directly queryable; no Store counterpart exists. Verified queryable in the probe org.
@@ -117,10 +116,14 @@ export const RTE_CATALOG: readonly RteType[] = [
     preferredFields: ALL_PREFERRED,
   },
 
-  // Neither path worked in the probe org: the base is absent or streaming-only, and no Store
-  // exists to fall back to. Kept so a differently-licensed org can still serve them; they
-  // classify cleanly as unavailable rather than failing the pull.
-  { base: 'ApexExecutionEvent', preferredFields: ALL_PREFERRED },
+  // Exist, but are streaming-only with no Store in any org probed — so they can never be
+  // captured retroactively. Kept deliberately: the manifest recording them as `not-queryable`
+  // is real coverage information. "This event type exists and cannot be read after the fact"
+  // is a different answer from "we did not look", and a forensic consumer needs to tell them
+  // apart before it reports an absence.
   { base: 'ConcurLongRunApexErrEvent', preferredFields: ALL_PREFERRED },
   { base: 'OrgLifecycleNotification', preferredFields: ALL_PREFERRED },
+
+  // `ApexExecutionEvent` was here and is gone: absent from describe in all five orgs, so the
+  // name appears not to exist rather than to be unlicensed. It cost a 404 per pull.
 ];
