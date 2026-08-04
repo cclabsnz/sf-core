@@ -310,11 +310,54 @@ describe('classifyRteError', () => {
 });
 
 describe('RTE_CATALOG', () => {
-  it('declares ListViewEvent with no Store — the split is not derivable from the name', () => {
-    expect(RTE_CATALOG.find((e) => e.base === 'ListViewEvent')?.store).toBeUndefined();
-    expect(RTE_CATALOG.find((e) => e.base === 'GuestUserAnomalyEvent')?.store).toBe(
-      'GuestUserAnomalyEventStore',
-    );
+  // Probed against a live org on 2026-08-03. The split is by event *kind*, not by name:
+  // audit events are queried directly, threat-detection events are streaming-only with a
+  // Store. Getting this backwards is what the probe caught.
+  const DIRECT = [
+    'ListViewEvent',
+    'ApiEvent',
+    'LoginEvent',
+    'LogoutEvent',
+    'ReportEvent',
+    'UriEvent',
+    'LightningUriEvent',
+    'LoginAsEvent',
+  ];
+  const STORED = [
+    'ApiAnomalyEvent',
+    'BulkApiResultEvent',
+    'CredentialStuffingEvent',
+    'FileEvent',
+    'GuestUserAnomalyEvent',
+    'PermissionSetEvent',
+    'ReportAnomalyEvent',
+    'SessionHijackingEvent',
+  ];
+
+  it.each(DIRECT)('declares no Store for %s — verified not to exist', (base) => {
+    expect(RTE_CATALOG.find((e) => e.base === base)?.store).toBeUndefined();
+  });
+
+  it.each(STORED)('declares %sStore — verified queryable with a streaming-only base', (base) => {
+    expect(RTE_CATALOG.find((e) => e.base === base)?.store).toBe(`${base}Store`);
+  });
+
+  it('declares no Store that was verified absent', () => {
+    // Every one of these 404'd on describe. A phantom Store is never reached when the base
+    // is queryable, but it documents an object that does not exist.
+    const phantom = new Set([
+      'ApiEventStore',
+      'LoginEventStore',
+      'LogoutEventStore',
+      'ReportEventStore',
+      'UriEventStore',
+      'LightningUriEventStore',
+      'LoginAsEventStore',
+      'ConcurLongRunApexErrEventStore',
+    ]);
+    for (const entry of RTE_CATALOG) {
+      expect(phantom.has(entry.store ?? '')).toBe(false);
+    }
   });
 
   it('asks every object for the fields that answer "did records leave"', () => {
