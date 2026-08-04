@@ -32,8 +32,22 @@ export interface RealtimePullOptions {
   catalog?: readonly RteType[];
   /** Re-capture object-hours already on disk. */
   force?: boolean;
+  /** Cap on rows accepted from one object. Defaults to MAX_RTE_ROWS. */
+  maxRows?: number;
   warn?: (msg: string) => void;
 }
+
+/**
+ * Ceiling on rows taken from a single RTE object in one pull.
+ *
+ * RTE payloads are small for a sensible window — a busy hour ran to a few hundred ApiEvent
+ * rows — but the window is caller-supplied and `queryAll` follows every page, so a month-wide
+ * window on a chatty object would page the lot into memory before a single byte reached disk.
+ * Overflow is reported as `too-large` rather than truncated: a short NDJSON file is
+ * indistinguishable from a quiet hour once written, and quietly answering "nothing else
+ * happened" is the one failure this package exists to prevent.
+ */
+export const MAX_RTE_ROWS = 200_000;
 
 export interface RealtimePullResult {
   captured: CapturedRteObject[];
@@ -102,10 +116,12 @@ async function captureOne(
       continue;
     }
 
+    const maxRows = opts.maxRows ?? MAX_RTE_ROWS;
     let rows: Array<Record<string, unknown>>;
     try {
+      // One over the cap, so an exactly-full result is told apart from an overflowing one.
       rows = await deps.soql.queryAll<Record<string, unknown>>(
-        buildRealtimeQuery(attempt.name, fields, opts.window),
+        buildRealtimeQuery(attempt.name, fields, opts.window, maxRows + 1),
       );
     } catch (err) {
       lastReason = classifyRteError(err);
@@ -113,18 +129,28 @@ async function captureOne(
       continue;
     }
 
+    if (rows.length > maxRows) {
+      opts.warn?.(
+        `${attempt.name}: more than ${maxRows} rows in this window; narrow the window and re-run.`,
+      );
+      return {
+        object: entry.base,
+        reason: 'too-large',
+        detail: `${attempt.name} returned more than ${maxRows} rows for the requested window; nothing written`,
+      };
+    }
+
     if (rows.length === 0) {
-      if (attempt.via === 'base') {
-        // The live event channel answered and had nothing. That is a real finding — nothing
-        // happened in this window — not a gap in capture, so it is recorded as a capture of
-        // zero rows rather than as an unavailable object.
-        return { object: entry.base, rows: 0, via: 'base', paths: [] };
-      }
-      // Only the retained-rows Store answered, and it is empty. Empty and never-retained are
-      // indistinguishable from here, so this must not be reported as "nothing happened".
-      lastReason = 'storage-disabled';
-      details.push(`${attempt.name}: queryable but returned 0 rows`);
-      continue;
+      // A query that succeeded and returned nothing is a finding: nothing happened in this
+      // window. Recorded as a capture of zero rows, not as an unavailable object.
+      //
+      // This used to distinguish base from Store, on the reasoning that an empty Store could
+      // not be told apart from one that never retained anything — reported as
+      // `storage-disabled`. A live run showed why that is wrong: the eight threat-detection
+      // Stores are queryable and empty in a normal hour, so every quiet hour produced eight
+      // "unavailable" entries claiming coverage was missing when the org had in fact been
+      // asked and had answered. Overstating a gap corrupts the record as surely as hiding one.
+      return { object: entry.base, rows: 0, via: attempt.via, paths: [] };
     }
 
     return writeBuckets(deps, opts, entry.base, attempt.via, rows);
@@ -206,12 +232,15 @@ export function buildRealtimeQuery(
   objectName: string,
   fields: readonly string[],
   window: { from: string; to: string },
+  limit?: number,
 ): string {
   const safeObject = objectName.replace(/[^A-Za-z0-9_]/g, '');
   const safeFields = fields.map((f) => f.replace(/[^A-Za-z0-9_]/g, '')).filter((f) => f.length > 0);
+  const limitClause =
+    limit === undefined ? '' : ` LIMIT ${Math.max(1, Math.trunc(limit))}`;
   return (
     `SELECT ${safeFields.join(', ')} FROM ${safeObject} ` +
-    `WHERE EventDate >= ${window.from} AND EventDate <= ${window.to}`
+    `WHERE EventDate >= ${window.from} AND EventDate <= ${window.to}${limitClause}`
   );
 }
 

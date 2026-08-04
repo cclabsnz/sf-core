@@ -112,3 +112,78 @@ describe('EventBaselineStore — coverage manifests', () => {
     expect(path.dirname(coverage)).toBe(path.join(tmpDir, '00Dxx', '_manifests'));
   });
 });
+
+describe('EventBaselineStore — capture integrity', () => {
+  it('treats a zero-byte file as not captured, so a killed run is retried', () => {
+    // A run killed between create and write leaves an empty file. Counting that as captured
+    // would retire the row permanently: every later run skips it and no manifest records a gap.
+    const store = new EventBaselineStore(tmpDir);
+    const target = store.pathFor('00Dxx', 'Login', '2026-08-02', '0AT01');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '');
+
+    expect(store.has('00Dxx', 'Login', '2026-08-02', '0AT01')).toBe(false);
+  });
+
+  it('leaves no temporary file behind after a successful write', () => {
+    const store = new EventBaselineStore(tmpDir);
+    store.save('00Dxx', 'Login', '2026-08-02', '0AT01', 'body');
+    const dir = path.join(tmpDir, '00Dxx', 'Login');
+    expect(fs.readdirSync(dir)).toEqual(['2026-08-02-0AT01.csv']);
+  });
+
+  it('never publishes a partial file — the final path appears only once complete', () => {
+    const store = new EventBaselineStore(tmpDir);
+    const target = store.realtimePathFor('00Dxx', 'ApiEvent', '2026-08-02', '04');
+    const seen: boolean[] = [];
+
+    // Observe the destination while the body is being serialised. With a direct write the
+    // path would already exist and be short; with rename it cannot exist at all yet.
+    const rows = Array.from({ length: 50 }, (_, i) => ({
+      i,
+      get watch() {
+        seen.push(fs.existsSync(target));
+        return 1;
+      },
+    }));
+    store.saveRealtime('00Dxx', 'ApiEvent', '2026-08-02', '04', rows);
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.some(Boolean)).toBe(false);
+    expect(fs.readFileSync(target, 'utf-8').trim().split('\n')).toHaveLength(50);
+  });
+});
+
+describe('EventBaselineStore — path segment safety', () => {
+  it('cannot be walked out of the store root by a hostile EventType', () => {
+    const store = new EventBaselineStore(tmpDir);
+    const escaped = store.pathFor('00Dxx', '../../../../etc', '2026-08-02', 'passwd');
+
+    // The separators are what make a traversal; the dots alone are just an odd directory
+    // name. So the property under test is containment, not the absence of '..' characters.
+    expect(path.resolve(escaped).startsWith(path.resolve(tmpDir) + path.sep)).toBe(true);
+    expect(path.relative(tmpDir, escaped).split(path.sep)).toEqual([
+      '00Dxx',
+      '.._.._.._.._etc',
+      '2026-08-02-passwd.csv',
+    ]);
+  });
+
+  it.each([
+    ['orgId', (s: EventBaselineStore) => s.pathFor('../../evil', 'Login', '2026-08-02', 'x')],
+    ['logDate', (s: EventBaselineStore) => s.pathFor('00Dxx', 'Login', '../..', 'x')],
+    ['id', (s: EventBaselineStore) => s.pathFor('00Dxx', 'Login', '2026-08-02', '../../x')],
+    ['object', (s: EventBaselineStore) => s.realtimePathFor('00Dxx', '../../x', '2026-08-02', '04')],
+  ])('confines a traversal attempt in %s', (_label, build) => {
+    const store = new EventBaselineStore(tmpDir);
+    const p = build(store);
+    expect(path.resolve(p).startsWith(path.resolve(tmpDir) + path.sep)).toBe(true);
+  });
+
+  it('keeps ordinary Salesforce identifiers untouched', () => {
+    const store = new EventBaselineStore(tmpDir);
+    expect(store.pathFor('00Dxx0000000000EAA', 'AuraRequest', '2026-08-02', '0ATxx01')).toBe(
+      path.join(tmpDir, '00Dxx0000000000EAA', 'AuraRequest', '2026-08-02-0ATxx01.csv'),
+    );
+  });
+});

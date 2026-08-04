@@ -4,6 +4,7 @@
 // capture Real-Time Event rows alongside them, and record a per-run coverage manifest.
 // All org I/O is behind the injected SoqlClient/RestClient, so this is unit-testable with
 // mocked clients — it never touches a real org.
+import * as fs from 'node:fs';
 import type { SoqlClient } from '../api/SoqlClient.js';
 import type { RestClient } from '../api/RestClient.js';
 import type { EventLogAccess } from '../context/AuditCache.js';
@@ -276,7 +277,14 @@ async function captureRow(
 
   try {
     // Stream straight to disk — never buffer the body — so large logs don't blow the heap.
-    const bytes = await rest.getRawToFile(`/sobjects/EventLogFile/${row.Id}/LogFile`, savedPath);
+    //
+    // Staged through a temp file and renamed, so the final path only ever exists complete.
+    // The client already removes a partial file when the stream errors, but that cannot help
+    // if the process itself dies mid-download: the truncated CSV would satisfy `has()` and be
+    // skipped by every later run, leaving a silently incomplete log presented as a whole one.
+    const tmpPath = `${savedPath}.${process.pid}.part`;
+    const bytes = await rest.getRawToFile(`/sobjects/EventLogFile/${row.Id}/LogFile`, tmpPath);
+    fs.renameSync(tmpPath, savedPath);
     base.downloaded += 1;
     base.totalBytes += bytes;
     record('downloaded', bytes);
@@ -289,6 +297,7 @@ async function captureRow(
       path: savedPath,
     });
   } catch (err) {
+    fs.rmSync(`${savedPath}.${process.pid}.part`, { force: true });
     base.failed += 1;
     record('failed', 0);
     coverage.elf.failed.push({

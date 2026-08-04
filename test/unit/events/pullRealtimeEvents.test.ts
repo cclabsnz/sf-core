@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { EventBaselineStore } from '../../../src/events/EventBaselineStore.js';
 import {
+  MAX_RTE_ROWS,
   buildRealtimeQuery,
   classifyRteError,
   pullRealtimeEvents,
@@ -116,9 +117,10 @@ describe('pullRealtimeEvents', () => {
     expect(result.captured[0]).toMatchObject({ object: 'GuestUserAnomalyEvent', rows: 1, via: 'store' });
   });
 
-  it('records storage-disabled when only the Store answers and it is empty', async () => {
-    // Empty and never-retained are indistinguishable from here, so this must NOT be reported
-    // as "nothing happened".
+  it('records an empty Store as a capture of zero rows, not as missing coverage', async () => {
+    // A live run showed the cost of the opposite: the eight threat-detection Stores are
+    // queryable and empty in a normal hour, so treating "queried, found nothing" as
+    // unavailable produced eight bogus coverage gaps every quiet hour.
     const deps = makeDeps({
       fields: {
         GuestUserAnomalyEvent: ['EventDate'],
@@ -132,12 +134,10 @@ describe('pullRealtimeEvents', () => {
 
     const result = await pullRealtimeEvents(deps, { window: WINDOW, catalog: [GUEST_ANOMALY] });
 
-    expect(result.captured).toEqual([]);
-    expect(result.unavailable[0]).toMatchObject({
-      object: 'GuestUserAnomalyEvent',
-      reason: 'storage-disabled',
-    });
-    expect(result.unavailable[0].detail).toContain('does not support query');
+    expect(result.unavailable).toEqual([]);
+    expect(result.captured).toEqual([
+      { object: 'GuestUserAnomalyEvent', rows: 0, via: 'store', paths: [] },
+    ]);
   });
 
   it('records a queryable base returning nothing as a capture of zero rows', async () => {
@@ -185,7 +185,8 @@ describe('pullRealtimeEvents', () => {
     expect(result.captured).toHaveLength(1);
     expect(emittedSoql[0]).toBe(
       'SELECT EventDate, SourceIp FROM ListViewEvent ' +
-        'WHERE EventDate >= 2026-08-02T04:00:00Z AND EventDate <= 2026-08-02T05:00:00Z',
+        'WHERE EventDate >= 2026-08-02T04:00:00Z AND EventDate <= 2026-08-02T05:00:00Z ' +
+        `LIMIT ${MAX_RTE_ROWS + 1}`,
     );
   });
 
@@ -385,5 +386,64 @@ describe('RTE_CATALOG', () => {
   it('has no duplicate base names', () => {
     const names = RTE_CATALOG.map((e) => e.base);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe('pullRealtimeEvents — bounded result sets', () => {
+  it('reports too-large and writes nothing rather than truncating', async () => {
+    // A short NDJSON file is indistinguishable from a quiet hour once written, so silently
+    // keeping the first N rows would answer "nothing else happened" — the one claim this
+    // package exists to avoid making falsely.
+    const rows = Array.from({ length: 6 }, (_, i) => ({
+      EventDate: `2026-08-02T04:0${i}:00.000Z`,
+    }));
+    const deps = makeDeps({
+      fields: { ListViewEvent: ['EventDate'] },
+      rows: { ListViewEvent: rows },
+    });
+
+    const result = await pullRealtimeEvents(deps, {
+      window: WINDOW,
+      catalog: [LIST_VIEW],
+      maxRows: 5,
+    });
+
+    expect(result.captured).toEqual([]);
+    expect(result.unavailable[0]).toMatchObject({ object: 'ListViewEvent', reason: 'too-large' });
+    expect(fs.existsSync(deps.store.realtimePathFor('00Dxx', 'ListViewEvent', '2026-08-02', '04'))).toBe(
+      false,
+    );
+  });
+
+  it('accepts a result set exactly at the cap', async () => {
+    const rows = Array.from({ length: 5 }, (_, i) => ({
+      EventDate: `2026-08-02T04:0${i}:00.000Z`,
+    }));
+    const deps = makeDeps({ fields: { ListViewEvent: ['EventDate'] }, rows: { ListViewEvent: rows } });
+
+    const result = await pullRealtimeEvents(deps, {
+      window: WINDOW,
+      catalog: [LIST_VIEW],
+      maxRows: 5,
+    });
+
+    expect(result.captured[0]).toMatchObject({ rows: 5 });
+  });
+
+  it('asks the org for one row more than the cap, so overflow is detectable', async () => {
+    const deps = makeDeps({ fields: { ListViewEvent: ['EventDate'] }, rows: { ListViewEvent: [] } });
+    await pullRealtimeEvents(deps, { window: WINDOW, catalog: [LIST_VIEW], maxRows: 5 });
+    expect(emittedSoql[0]).toContain('LIMIT 6');
+  });
+});
+
+describe('buildRealtimeQuery — limit', () => {
+  it('omits LIMIT when none is given', () => {
+    expect(buildRealtimeQuery('ListViewEvent', ['EventDate'], WINDOW)).not.toContain('LIMIT');
+  });
+
+  it('coerces a hostile limit to a safe integer', () => {
+    expect(buildRealtimeQuery('ListViewEvent', ['EventDate'], WINDOW, 10.9)).toContain('LIMIT 10');
+    expect(buildRealtimeQuery('ListViewEvent', ['EventDate'], WINDOW, -5)).toContain('LIMIT 1');
   });
 });
