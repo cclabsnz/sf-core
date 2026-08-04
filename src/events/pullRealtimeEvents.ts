@@ -141,17 +141,16 @@ async function captureOne(
     }
 
     if (rows.length === 0) {
-      if (attempt.via === 'base') {
-        // The live event channel answered and had nothing. That is a real finding — nothing
-        // happened in this window — not a gap in capture, so it is recorded as a capture of
-        // zero rows rather than as an unavailable object.
-        return { object: entry.base, rows: 0, via: 'base', paths: [] };
-      }
-      // Only the retained-rows Store answered, and it is empty. Empty and never-retained are
-      // indistinguishable from here, so this must not be reported as "nothing happened".
-      lastReason = 'storage-disabled';
-      details.push(`${attempt.name}: queryable but returned 0 rows`);
-      continue;
+      // A query that succeeded and returned nothing is a finding: nothing happened in this
+      // window. Recorded as a capture of zero rows, not as an unavailable object.
+      //
+      // This used to distinguish base from Store, on the reasoning that an empty Store could
+      // not be told apart from one that never retained anything — reported as
+      // `storage-disabled`. A live run showed why that is wrong: the eight threat-detection
+      // Stores are queryable and empty in a normal hour, so every quiet hour produced eight
+      // "unavailable" entries claiming coverage was missing when the org had in fact been
+      // asked and had answered. Overstating a gap corrupts the record as surely as hiding one.
+      return { object: entry.base, rows: 0, via: attempt.via, paths: [] };
     }
 
     return writeBuckets(deps, opts, entry.base, attempt.via, rows);

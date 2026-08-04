@@ -117,9 +117,10 @@ describe('pullRealtimeEvents', () => {
     expect(result.captured[0]).toMatchObject({ object: 'GuestUserAnomalyEvent', rows: 1, via: 'store' });
   });
 
-  it('records storage-disabled when only the Store answers and it is empty', async () => {
-    // Empty and never-retained are indistinguishable from here, so this must NOT be reported
-    // as "nothing happened".
+  it('records an empty Store as a capture of zero rows, not as missing coverage', async () => {
+    // A live run showed the cost of the opposite: the eight threat-detection Stores are
+    // queryable and empty in a normal hour, so treating "queried, found nothing" as
+    // unavailable produced eight bogus coverage gaps every quiet hour.
     const deps = makeDeps({
       fields: {
         GuestUserAnomalyEvent: ['EventDate'],
@@ -133,12 +134,10 @@ describe('pullRealtimeEvents', () => {
 
     const result = await pullRealtimeEvents(deps, { window: WINDOW, catalog: [GUEST_ANOMALY] });
 
-    expect(result.captured).toEqual([]);
-    expect(result.unavailable[0]).toMatchObject({
-      object: 'GuestUserAnomalyEvent',
-      reason: 'storage-disabled',
-    });
-    expect(result.unavailable[0].detail).toContain('does not support query');
+    expect(result.unavailable).toEqual([]);
+    expect(result.captured).toEqual([
+      { object: 'GuestUserAnomalyEvent', rows: 0, via: 'store', paths: [] },
+    ]);
   });
 
   it('records a queryable base returning nothing as a capture of zero rows', async () => {
