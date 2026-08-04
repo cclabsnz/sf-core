@@ -82,6 +82,11 @@ after an unpublish. If a bad tarball reaches the registry, deprecate it and ship
 *rejected* OIDC exchange looks like: npm asks, npm is declined, npm falls back to unauthenticated
 and reports it as though it never had a token to begin with. Work through, in order:
 
+0. **If the trusted publisher was configured in the last few minutes, just re-run.** The npm
+   side takes a moment to propagate, and until it does the exchange is refused — producing a
+   failure byte-identical to having no configuration at all. This is what happened on the
+   v0.2.0 release: same commit, same tarball hash, no changes between a failed run and a
+   successful one. Rule out the boring cause before debugging the interesting one.
 1. The trusted publisher on npmjs.com matches the table above, field for field. Environment
    blank. Workflow filename exactly `publish.yml`.
 2. The publisher is on the **package**, not the org.

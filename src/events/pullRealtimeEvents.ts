@@ -32,8 +32,22 @@ export interface RealtimePullOptions {
   catalog?: readonly RteType[];
   /** Re-capture object-hours already on disk. */
   force?: boolean;
+  /** Cap on rows accepted from one object. Defaults to MAX_RTE_ROWS. */
+  maxRows?: number;
   warn?: (msg: string) => void;
 }
+
+/**
+ * Ceiling on rows taken from a single RTE object in one pull.
+ *
+ * RTE payloads are small for a sensible window — a busy hour ran to a few hundred ApiEvent
+ * rows — but the window is caller-supplied and `queryAll` follows every page, so a month-wide
+ * window on a chatty object would page the lot into memory before a single byte reached disk.
+ * Overflow is reported as `too-large` rather than truncated: a short NDJSON file is
+ * indistinguishable from a quiet hour once written, and quietly answering "nothing else
+ * happened" is the one failure this package exists to prevent.
+ */
+export const MAX_RTE_ROWS = 200_000;
 
 export interface RealtimePullResult {
   captured: CapturedRteObject[];
@@ -102,15 +116,28 @@ async function captureOne(
       continue;
     }
 
+    const maxRows = opts.maxRows ?? MAX_RTE_ROWS;
     let rows: Array<Record<string, unknown>>;
     try {
+      // One over the cap, so an exactly-full result is told apart from an overflowing one.
       rows = await deps.soql.queryAll<Record<string, unknown>>(
-        buildRealtimeQuery(attempt.name, fields, opts.window),
+        buildRealtimeQuery(attempt.name, fields, opts.window, maxRows + 1),
       );
     } catch (err) {
       lastReason = classifyRteError(err);
       details.push(`${attempt.name}: ${message(err)}`);
       continue;
+    }
+
+    if (rows.length > maxRows) {
+      opts.warn?.(
+        `${attempt.name}: more than ${maxRows} rows in this window; narrow the window and re-run.`,
+      );
+      return {
+        object: entry.base,
+        reason: 'too-large',
+        detail: `${attempt.name} returned more than ${maxRows} rows for the requested window; nothing written`,
+      };
     }
 
     if (rows.length === 0) {
@@ -206,12 +233,15 @@ export function buildRealtimeQuery(
   objectName: string,
   fields: readonly string[],
   window: { from: string; to: string },
+  limit?: number,
 ): string {
   const safeObject = objectName.replace(/[^A-Za-z0-9_]/g, '');
   const safeFields = fields.map((f) => f.replace(/[^A-Za-z0-9_]/g, '')).filter((f) => f.length > 0);
+  const limitClause =
+    limit === undefined ? '' : ` LIMIT ${Math.max(1, Math.trunc(limit))}`;
   return (
     `SELECT ${safeFields.join(', ')} FROM ${safeObject} ` +
-    `WHERE EventDate >= ${window.from} AND EventDate <= ${window.to}`
+    `WHERE EventDate >= ${window.from} AND EventDate <= ${window.to}${limitClause}`
   );
 }
 

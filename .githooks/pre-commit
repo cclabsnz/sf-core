@@ -7,12 +7,21 @@
 set -u
 
 # A real org id is 00D + 12 or 15 more alphanumerics. Test fixtures conventionally use
-# 'xx' or a long run of zeros (00Dxx0000000000EAA, 00D000000000001); real ids never do —
-# six consecutive zeros. Excluding fixtures matters: a guard
-# that rejects the very id its own error message recommends gets disabled by the first
-# developer who hits it.
+# 'xx' or a long run of zeros (00Dxx0000000000EAA, 00D000000000001). Excluding fixtures
+# matters: a guard that rejects the very id its own error message recommends gets disabled by
+# the first developer who hits it.
+#
+# The zero-run threshold was 6, on the stated assumption that a real id never contains six
+# consecutive zeros. Real ids routinely do: the common '00D' + 2 chars + a run of zeros +
+# trailing suffix shape clears six easily, and a genuine customer id reached a test file in
+# this repo past this guard. Nine is above anything observed in a real id and still admits
+# both documented fixtures. Prefer the 'xx' form; the zero form is kept only for ids already
+# in the tree.
+#
+# Note for anyone widening this again: an example id written in a comment here will itself be
+# flagged, by design. Describe the shape instead of writing one out.
 ORG_ID='00D[A-Za-z0-9]{12,15}'
-FIXTURE_ID='00D[A-Za-z0-9]*([xX]{2}|0{6,})'
+FIXTURE_ID='00D[A-Za-z0-9]*([xX]{2}|0{9,})'
 SANDBOX_HOST='[A-Za-z0-9-]+\.sandbox\.my\.salesforce\.com'
 fail=0
 

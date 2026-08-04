@@ -59,6 +59,7 @@ export type {
 } from './events/pullRealtimeEvents.js';
 export {
   pullRealtimeEvents,
+  MAX_RTE_ROWS,
   buildRealtimeQuery,
   describeFields,
   classifyRteError,
