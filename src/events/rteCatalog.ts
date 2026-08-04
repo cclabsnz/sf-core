@@ -60,44 +60,70 @@ const CONTEXT_FIELDS = [
 const ALL_PREFERRED = [...COMMON_FIELDS, ...EXFIL_FIELDS, ...CONTEXT_FIELDS];
 
 /**
- * The 20 known RTE types. `store` is declared wherever a `*Store` counterpart is known to
- * exist; its absence on ListViewEvent is deliberate, not an oversight.
+ * The 20 known RTE types, split by how the org actually serves them.
+ *
+ * Probed against a live sandbox on 2026-08-03, which replaced the naming convention this
+ * table was first built on. The convention was wrong in both directions, and the real rule
+ * turns out to be about what kind of event it is:
+ *
+ *   - **Audit events** (someone did a thing) are queried directly and have NO `*Store`.
+ *     `ApiEventStore`, `LoginEventStore`, `LogoutEventStore`, `ReportEventStore`,
+ *     `UriEventStore`, `LightningUriEventStore` and `LoginAsEventStore` were all declared
+ *     here and none of them exist — every one 404s on describe.
+ *   - **Threat-detection events** (something looked wrong) are streaming-only: the base
+ *     rejects a query outright and the retained rows live in a `*Store`.
+ *
+ * A `store` on a directly-queryable base is never reached, so the phantom entries were
+ * harmless — but a catalog that documents objects which do not exist is worse than no
+ * documentation, so they are gone.
+ *
+ * Re-probed across five orgs — two sandboxes and three production — on 2026-08-03. Every
+ * verdict was identical in all five, including the absences, so the negatives are no longer
+ * a single-org observation that a different licence might overturn.
  */
 export const RTE_CATALOG: readonly RteType[] = [
+  // Directly queryable; no Store counterpart exists. Verified queryable in the probe org.
   { base: 'ListViewEvent', preferredFields: ALL_PREFERRED },
-  { base: 'ApiEvent', store: 'ApiEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'LoginEvent', store: 'LoginEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'LogoutEvent', store: 'LogoutEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'ReportEvent', store: 'ReportEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'UriEvent', store: 'UriEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'LightningUriEvent', store: 'LightningUriEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'ApexExecutionEvent', preferredFields: ALL_PREFERRED },
-  { base: 'BulkApiResultEvent', store: 'BulkApiResultEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'FileEvent', store: 'FileEventStore', preferredFields: ALL_PREFERRED },
+  { base: 'ApiEvent', preferredFields: ALL_PREFERRED },
+  { base: 'LoginEvent', preferredFields: ALL_PREFERRED },
+  { base: 'LogoutEvent', preferredFields: ALL_PREFERRED },
+  { base: 'ReportEvent', preferredFields: ALL_PREFERRED },
+  { base: 'UriEvent', preferredFields: ALL_PREFERRED },
+  { base: 'LightningUriEvent', preferredFields: ALL_PREFERRED },
+  { base: 'LoginAsEvent', preferredFields: ALL_PREFERRED },
+  { base: 'IdentityProviderEventStore', preferredFields: ALL_PREFERRED },
+
+  // Streaming-only base, retained rows in the Store. All eight Stores verified queryable,
+  // and all eight bases verified to reject a query with "does not support query".
   { base: 'ApiAnomalyEvent', store: 'ApiAnomalyEventStore', preferredFields: ALL_PREFERRED },
-  {
-    base: 'GuestUserAnomalyEvent',
-    store: 'GuestUserAnomalyEventStore',
-    preferredFields: ALL_PREFERRED,
-  },
-  {
-    base: 'SessionHijackingEvent',
-    store: 'SessionHijackingEventStore',
-    preferredFields: ALL_PREFERRED,
-  },
+  { base: 'BulkApiResultEvent', store: 'BulkApiResultEventStore', preferredFields: ALL_PREFERRED },
   {
     base: 'CredentialStuffingEvent',
     store: 'CredentialStuffingEventStore',
     preferredFields: ALL_PREFERRED,
   },
-  { base: 'ReportAnomalyEvent', store: 'ReportAnomalyEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'PermissionSetEvent', store: 'PermissionSetEventStore', preferredFields: ALL_PREFERRED },
+  { base: 'FileEvent', store: 'FileEventStore', preferredFields: ALL_PREFERRED },
   {
-    base: 'ConcurLongRunApexErrEvent',
-    store: 'ConcurLongRunApexErrEventStore',
+    base: 'GuestUserAnomalyEvent',
+    store: 'GuestUserAnomalyEventStore',
     preferredFields: ALL_PREFERRED,
   },
+  { base: 'PermissionSetEvent', store: 'PermissionSetEventStore', preferredFields: ALL_PREFERRED },
+  { base: 'ReportAnomalyEvent', store: 'ReportAnomalyEventStore', preferredFields: ALL_PREFERRED },
+  {
+    base: 'SessionHijackingEvent',
+    store: 'SessionHijackingEventStore',
+    preferredFields: ALL_PREFERRED,
+  },
+
+  // Exist, but are streaming-only with no Store in any org probed — so they can never be
+  // captured retroactively. Kept deliberately: the manifest recording them as `not-queryable`
+  // is real coverage information. "This event type exists and cannot be read after the fact"
+  // is a different answer from "we did not look", and a forensic consumer needs to tell them
+  // apart before it reports an absence.
+  { base: 'ConcurLongRunApexErrEvent', preferredFields: ALL_PREFERRED },
   { base: 'OrgLifecycleNotification', preferredFields: ALL_PREFERRED },
-  { base: 'LoginAsEvent', store: 'LoginAsEventStore', preferredFields: ALL_PREFERRED },
-  { base: 'IdentityProviderEventStore', preferredFields: ALL_PREFERRED },
+
+  // `ApexExecutionEvent` was here and is gone: absent from describe in all five orgs, so the
+  // name appears not to exist rather than to be unlicensed. It cost a 404 per pull.
 ];
