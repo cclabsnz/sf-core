@@ -10,7 +10,7 @@ contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/
 
 | Area | What it provides |
 | --- | --- |
-| **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient` — read-only wrappers over a `@salesforce/core` `Connection` |
+| **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient`: read-only wrappers over a `@salesforce/core` `Connection` |
 | **Platform behaviour** | `FlowRepository`, `ApexRepository`, `isSalesforceId`, `describeSalesforceError`, `mapWithConcurrency` |
 | **IR contracts** | Typed interfaces plus JSON Schemas for `coupling-graph`, `landscape-manifest` and `process-graph` |
 | **Report shell** | Branding resolution and embedded webfonts for self-contained HTML reports |
@@ -21,15 +21,15 @@ contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/
 Salesforce has behaviours that are easy to get wrong and expensive to discover, and each one
 here was learned by running against a real org:
 
-- `FlowDefinitionView` is a **standard** object — querying it through Tooling answers
+- `FlowDefinitionView` is a **standard** object, so querying it through Tooling answers
   *"sObject type 'FlowDefinitionView' is not supported."*
-- `Flow.Metadata` **is** Tooling, and is strictly **one row per query** — an `Id IN (...)`
+- `Flow.Metadata` **is** Tooling, and is strictly **one row per query**. An `Id IN (...)`
   batch is rejected outright, so bulk reads need bounded concurrency.
-- `ApexClass` has a `SymbolTable` column; **`ApexTrigger` does not** — selecting it fails the
+- `ApexClass` has a `SymbolTable` column; **`ApexTrigger` does not**, and selecting it fails the
   entire query.
 - Managed-package flows return a **durable name** (`ns__Flow-1`) where an Id is expected;
   feeding that to a `WHERE` clause yields `invalid ID field`.
-- `expr0` is Salesforce's own aggregate alias and **cannot be requested** — an explicit
+- `expr0` is Salesforce's own aggregate alias and **cannot be requested**. An explicit
   `COUNT(Id) expr0` is rejected with *"alias is reserved: expr0"*.
 
 Encoding these once means a consumer cannot rediscover them by shipping the bug first. The
@@ -52,7 +52,7 @@ const flows = new FlowRepository(soqlClient, toolingClient);
 const definitions = await flows.listDefinitions();
 const { versions, managedSkipped } = FlowRepository.selectVersions(definitions);
 
-// Flow.Metadata is one row per query — concurrency is the only lever.
+// Flow.Metadata is one row per query; concurrency is the only lever.
 await mapWithConcurrency(versions, 8, async (v) => {
   const metadata = await flows.fetchMetadata(v.id);
   // ...
@@ -68,7 +68,7 @@ const couplingGraphSchema = loadSchema('coupling-graph');
 
 ## Guarantees
 
-Both are enforced as tests, not asserted in prose — run them yourself with `pnpm test`:
+Both are enforced as tests, not asserted in prose. Run them yourself with `pnpm test`:
 
 - **Read-only.** No jsforce mutation API, HTTP write verb, or bulk/composite write path may
   appear in source. Every org request is a SOQL query, a REST **GET**, or a Metadata read.
@@ -84,5 +84,5 @@ version bump on the contract, not a silent edit.
 
 ## Licence
 
-Apache-2.0 — see [LICENSE](LICENSE). Bundled fonts are SIL OFL 1.1; see
+Apache-2.0, see [LICENSE](LICENSE). Bundled fonts are SIL OFL 1.1; see
 [`src/assets/fonts/NOTICE.md`](src/assets/fonts/NOTICE.md).
