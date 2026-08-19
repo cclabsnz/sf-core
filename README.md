@@ -1,5 +1,14 @@
 # @cclabsnz/sf-core
 
+[![CI](https://github.com/cclabsnz/sf-core/actions/workflows/ci.yml/badge.svg)](https://github.com/cclabsnz/sf-core/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cclabsnz/sf-core/actions/workflows/codeql.yml/badge.svg)](https://github.com/cclabsnz/sf-core/actions/workflows/codeql.yml)
+[![Semgrep](https://github.com/cclabsnz/sf-core/actions/workflows/semgrep.yml/badge.svg)](https://github.com/cclabsnz/sf-core/actions/workflows/semgrep.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/cclabsnz/sf-core/badge)](https://securityscorecards.dev/viewer/?uri=github.com/cclabsnz/sf-core)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14150/badge)](https://www.bestpractices.dev/projects/14150)
+[![npm version](https://img.shields.io/npm/v/@cclabsnz/sf-core)](https://www.npmjs.com/package/@cclabsnz/sf-core)
+[![npm provenance](https://img.shields.io/badge/npm-signed%20provenance-brightgreen)](https://www.npmjs.com/package/@cclabsnz/sf-core#provenance)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 > Shared platform layer for the CloudCounsel Salesforce `sf` plugins.
 
 The read-only API surface, platform-behaviour knowledge, report shell and versioned IR
