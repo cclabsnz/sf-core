@@ -63,6 +63,8 @@ Each of these is enforced by a test that fails the build. They are not matters o
   `<script>` element, where `JSON.stringify` output also needs `<` escaped.
 - **Allowlist, do not sanitise, when building SOQL.** Filter identifiers to
   `[A-Za-z0-9_]` and coerce numeric clauses, as `pullRealtimeEvents` does.
+- **Lint is a gate, not a suggestion.** `pnpm run lint` runs oxlint over `src` and `test`
+  with the correctness category set to error, and CI runs it in the required build-test job.
 - **Deterministic output.** The same input must produce the same bytes. No `Date.now()` or
   `Math.random()` in a render path.
 - **Presence on disk means complete.** Write captures atomically via a temp file and
@@ -79,10 +81,10 @@ Each of these is enforced by a test that fails the build. They are not matters o
 ## Before you open a pull request
 
 ```bash
-pnpm test && pnpm build
+pnpm run lint && pnpm test && pnpm build
 ```
 
-Both must exit 0. Check the exit code rather than reading the last lines of output: piping a
+All three must exit 0. Check the exit code rather than reading the last lines of output: piping a
 compiler into `tail` reports the exit status of `tail`. There is no `typecheck` script here;
 `pnpm test` type-checks as it runs.
 
