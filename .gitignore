@@ -12,3 +12,9 @@ package-lock.json
 npm-debug.log*
 pnpm-debug.log*
 CLAUDE.md
+
+# Superpowers execution scaffolding. Plans and SDD ledgers quote live-org detail
+# (product names, counts, failed reads) as a matter of course, and this repository is
+# public. The other two repos are ignored only by a `*` gitignore the tool happens to
+# write inside the directory; a rule here does not depend on that file existing.
+/.superpowers/
