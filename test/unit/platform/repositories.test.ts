@@ -173,7 +173,9 @@ describe('mapWithConcurrency', () => {
     await mapWithConcurrency(items, 4, async (i) => {
       inFlight++;
       peak = Math.max(peak, inFlight);
-      await new Promise((r) => setTimeout(r, 2));
+      await new Promise((r) => {
+        setTimeout(r, 2);
+      });
       inFlight--;
       done.push(i);
     });

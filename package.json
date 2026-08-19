@@ -18,6 +18,7 @@
     "./schemas/*": "./schemas/*"
   },
   "scripts": {
+    "lint": "oxlint src test",
     "build": "tsc -p tsconfig.json",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --passWithNoTests",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js test/unit --passWithNoTests",
@@ -27,14 +28,15 @@
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
+    "@salesforce/core": "^9",
     "@types/jest": "^29",
     "@types/node": "^22",
     "ajv": "^8",
     "jest": "^29",
+    "oxlint": "^1.79.0",
     "ts-jest": "^29",
     "ts-node": "^10.9.2",
-    "typescript": "^5",
-    "@salesforce/core": "^9"
+    "typescript": "^5"
   },
   "engines": {
     "node": ">=18.0.0"

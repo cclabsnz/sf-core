@@ -35,7 +35,7 @@ export function resolveBranding(
   overrides: BrandingOverrides | undefined,
   preparedFor: string | undefined,
 ): Branding {
-  const merged: Branding = { ...DEFAULT_BRANDING, ...(overrides ?? {}) };
+  const merged: Branding = { ...DEFAULT_BRANDING, ...overrides };
   if (preparedFor) merged.preparedFor = preparedFor;
   return merged;
 }
