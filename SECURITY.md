@@ -1,8 +1,14 @@
 # Security Policy
 
-`@cclabsnz/sf-audit` is a **read-only** Salesforce security audit plugin. It issues
-only SOQL / Tooling / REST GET queries and never modifies an org. Even so, we take
-the security of the plugin (and of the orgs it runs against) seriously.
+`@cclabsnz/sf-core` is the shared platform layer beneath the CloudCounsel Salesforce
+`sf` plugins: API clients, org context, event log pull, and report rendering. It is a
+**library**, not a CLI plugin, and it is **read-only** with respect to any Salesforce
+org: it issues only SOQL / Tooling / REST GET queries and never modifies an org.
+
+Because it sits underneath the other plugins, a defect here reaches all of them. Two
+of its responsibilities are security-relevant in their own right: it writes captured
+event data to disk under the operator's home directory, and it renders the HTML that
+downstream plugins hand to clients.
 
 ## Supported versions
 
@@ -23,14 +29,15 @@ Instead, use one of the following private channels:
 - **GitHub private vulnerability reporting:** open the repository's **Security**
   tab and choose **Report a vulnerability** (preferred).
 - **Email:** [hello@cloudcounsel.co.nz](mailto:hello@cloudcounsel.co.nz) with the
-  subject line `SECURITY: sf-audit`.
+  subject line `SECURITY: sf-core`.
 
 Please include:
 
-- the plugin version (`sf plugins inspect @cclabsnz/sf-audit`),
+- the package version (`npm ls @cclabsnz/sf-core`, or the version recorded by the
+  plugin that depends on it),
 - a description of the issue and its impact,
 - steps to reproduce, and
-- any relevant logs (with org identifiers and secrets redacted).
+- any relevant logs, **with org identifiers and secrets redacted**.
 
 ## What to expect
 
@@ -41,20 +48,29 @@ Please include:
 
 ## Scope
 
-In scope: the plugin's code and its handling of org data, credentials, and report
-output. Out of scope: vulnerabilities in Salesforce itself, in the `sf` CLI, or in
-third-party dependencies (report those upstream; we will bump dependencies promptly
-via Dependabot).
+In scope: this package's code, its handling of org data and credentials, the paths it
+writes to, and the HTML it renders on behalf of dependent plugins. Out of scope:
+vulnerabilities in Salesforce itself, in the `sf` CLI, or in third-party dependencies
+(report those upstream; we will bump dependencies promptly via Dependabot).
 
 ## Release integrity & assurance
 
-- **Read-only, enforced.** A CI test (`test/unit/api/readonly-invariant.test.ts`)
-  fails the build if any org-mutating API, HTTP write verb, or bulk/composite write
-  path is introduced into the source.
-- **Build provenance.** Packages are published from GitHub Actions with npm provenance;
-  verify on the package's npm page or via `npm view @cclabsnz/sf-audit --json` (the
-  `dist.attestations` field).
-- **Static analysis & supply chain.** CodeQL and OpenSSF Scorecard run on every change,
-  and a CycloneDX SBOM is attached to each GitHub Release.
-- **To verify what you installed:** `sf plugins inspect @cclabsnz/sf-audit` for the
-  version, then compare against the signed release and provenance attestation.
+- **Read-only, enforced.** `test/unit/invariants/readonly-invariant.test.ts` fails the
+  build if any org-mutating API, HTTP write verb, or bulk/composite write path is
+  introduced into the source.
+- **No network egress.** `test/unit/invariants/network-egress.test.ts` fails the build
+  if any code path could contact a third party. The only destination is the org the
+  operator authenticated against. Rendered reports are self-contained: fonts are
+  inlined as data URIs, and there is no `script src`, stylesheet link, or fetch.
+- **Confined writes.** Every org-supplied value used in a filesystem path is reduced to
+  a single safe path segment before it is joined, so captured evidence cannot be placed
+  outside the store.
+- **No org data in the repository.** A guard runs in CI and as a pre-commit hook,
+  rejecting org ids, sandbox hostnames and generated artefacts in the tree and in
+  commit messages.
+- **Build provenance.** Releases are published from GitHub Actions over OIDC trusted
+  publishing, with npm provenance and no stored token. Verify with
+  `npm view @cclabsnz/sf-core --json` and check the `dist.attestations` field.
+- **Static analysis & supply chain.** CodeQL, Semgrep, Socket and OpenSSF Scorecard run
+  on every change; every GitHub Action is pinned by commit SHA; and a CycloneDX SBOM is
+  attached to each GitHub Release.
