@@ -45,6 +45,7 @@
     "/src/assets",
     "LICENSE",
     "README.md",
+    "CHANGELOG.md",
     "!/lib/**/*.map"
   ],
   "repository": {
