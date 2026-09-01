@@ -22,7 +22,9 @@ Current released version: **0.3.0**.
 - **Broaden event capture.** `EventBaselineStore` and the Real-Time Event catalog are the
   newest parts of this package and the least exercised across orgs. The intent is to widen
   the catalog only where a reading from a live org supports it, since the catalog was wrong
-  in both directions the first time it was written from a naming convention.
+  in both directions the first time it was written from a naming convention. The probe that
+  widens it, and the record of what each Salesforce release changed, live in
+  [docs/RELEASE_TRACKING.md](docs/RELEASE_TRACKING.md).
 - **Branch coverage.** Statement coverage is above 92%, but branch coverage sits near 75%.
   The gap is concentrated in error paths, which is precisely where this package's behaviour
   matters: a refused read must be distinguishable from an absent one.

@@ -27,9 +27,31 @@ Merged to `main`, not yet released.
 - `/.superpowers/` added to `.gitignore`. Execution ledgers quote live-org detail as a matter of
   course, and this repository is public. Nothing was ever tracked under that path. (#9)
 
+### Fixed
+
+- **Four Real-Time Event objects were missing from the catalog**, and had been since it was
+  written: `LoginAnomalyEvent`, `UniversalAnomalyEvent`, `IdentityVerificationEvent` and
+  `ApiPrtcPolicyChangeEvent`. All four were verified across eight orgs. `LoginAnomalyEvent` is
+  the one that mattered — login anomaly is precisely the signal this catalog exists to retain.
+  The 0.3.0 probe checked that every declared object behaved as declared and found nothing
+  wrong; it never asked the inverse question. A missing entry raises no error anywhere, so the
+  pull simply never asked for these objects and the manifest recorded no gap, leaving a
+  consumer to read the silence as "this org had no such events" rather than "we did not look".
+  Re-probing now runs in both directions. (#13)
+- **A catalog invariant passed vacuously.** The test asserting that a directly-queryable object
+  declares no `*Store` read `find(...)?.store`, which is `undefined` both for an entry with no
+  Store and for an entry that is absent entirely — so it could not fail for a missing object,
+  which is how `IdentityVerificationEvent` stayed missing. It now asserts the entry exists
+  first. (#13)
+
 ### Added
 
 - `CONTRIBUTING.md` and this changelog.
+- `docs/RELEASE_TRACKING.md`: what a Salesforce release does and does not require of this
+  package, the per-release checklist, and a record of each release assessed. Winter '27
+  (API v68.0) is assessed and changes nothing here — no API version is pinned anywhere in
+  `src/`, so the release is inert for this package. The catalog re-probe against a v68.0
+  preview org remains open, and is recorded there as outstanding rather than assumed. (#13)
 
 ## [0.3.0] — 2026-08-04
 

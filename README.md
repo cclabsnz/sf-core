@@ -11,7 +11,7 @@
 
 > Shared platform layer for the CloudCounsel Salesforce `sf` plugins.
 
-[Architecture](docs/ARCHITECTURE.md) · [Assurance case](docs/ASSURANCE_CASE.md) · [Governance](GOVERNANCE.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+[Architecture](docs/ARCHITECTURE.md) · [Assurance case](docs/ASSURANCE_CASE.md) · [Release tracking](docs/RELEASE_TRACKING.md) · [Governance](GOVERNANCE.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
 
 The read-only API surface, platform-behaviour knowledge, report shell and versioned IR
 contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/sf-audit)
