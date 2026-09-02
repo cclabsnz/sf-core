@@ -52,6 +52,11 @@ Merged to `main`, not yet released.
   (API v68.0) is assessed and changes nothing here — no API version is pinned anywhere in
   `src/`, so the release is inert for this package. The catalog re-probe against a v68.0
   preview org remains open, and is recorded there as outstanding rather than assumed. (#13)
+- README: an **Event capture** row in the capability table, which had no entry for `src/events/`
+  despite it being the largest module and fully exported; the Real-Time Event base/`*Store`
+  split added to the list of platform behaviours; and a statement of where the contract-test
+  guarantee stops — a test can refuse a wrong read, but it cannot notice an object the catalog
+  never lists. (#13)
 
 ## [0.3.0] — 2026-08-04
 
