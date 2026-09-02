@@ -11,7 +11,7 @@
 
 > Shared platform layer for the CloudCounsel Salesforce `sf` plugins.
 
-[Architecture](docs/ARCHITECTURE.md) · [Assurance case](docs/ASSURANCE_CASE.md) · [Governance](GOVERNANCE.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+[Architecture](docs/ARCHITECTURE.md) · [Assurance case](docs/ASSURANCE_CASE.md) · [Release tracking](docs/RELEASE_TRACKING.md) · [Governance](GOVERNANCE.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
 
 The read-only API surface, platform-behaviour knowledge, report shell and versioned IR
 contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/sf-audit)
@@ -23,6 +23,7 @@ contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/
 | --- | --- |
 | **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient`: read-only wrappers over a `@salesforce/core` `Connection` |
 | **Platform behaviour** | `FlowRepository`, `ApexRepository`, `isSalesforceId`, `describeSalesforceError`, `mapWithConcurrency` |
+| **Event capture** | `EventBaselineStore`, `RTE_CATALOG`, `pullEventLogs`, `pullRealtimeEvents`, `CaptureManifest`: bounded, resumable EventLogFile and Real-Time Event pulls |
 | **IR contracts** | Typed interfaces plus JSON Schemas for `coupling-graph`, `landscape-manifest` and `process-graph` |
 | **Report shell** | Branding resolution and embedded webfonts for self-contained HTML reports |
 | **Test invariants** | Static guards that fail a build on org writes or network egress |
@@ -42,11 +43,23 @@ here was learned by running against a real org:
   feeding that to a `WHERE` clause yields `invalid ID field`.
 - `expr0` is Salesforce's own aggregate alias and **cannot be requested**. An explicit
   `COUNT(Id) expr0` is rejected with *"alias is reserved: expr0"*.
+- Real-Time Event objects split unevenly between the streaming base and a retained-rows
+  `*Store`, and **the split cannot be derived from the name**. Roughly half the base objects
+  reject a `SELECT` outright while their `*Store` answers fine. `ListViewEvent` is queryable
+  and has no Store at all; `GuestUserAnomalyEvent` is the exact inverse.
 
 Encoding these once means a consumer cannot rediscover them by shipping the bug first. The
 contract tests are the point: their mocks refuse exactly as an org refuses, so a query sent to
 the wrong API or asking for a non-existent column fails the build rather than degrading
 silently in production.
+
+That guarantee has one edge, and it is worth stating because this package has been caught by
+it. A contract test can only refuse what the code asks for; it cannot notice an object the
+catalog never lists. A missing entry raises no error anywhere — the read is simply never
+attempted, and the resulting absence is indistinguishable from an org that had nothing to
+report. So the catalogs are re-probed against live orgs in **both** directions, asking not
+only whether every listed object still behaves as listed but what `describe` returns that is
+not listed at all. See [docs/RELEASE_TRACKING.md](docs/RELEASE_TRACKING.md).
 
 ## Install
 

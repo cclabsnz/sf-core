@@ -60,7 +60,7 @@ const CONTEXT_FIELDS = [
 const ALL_PREFERRED = [...COMMON_FIELDS, ...EXFIL_FIELDS, ...CONTEXT_FIELDS];
 
 /**
- * The 20 known RTE types, split by how the org actually serves them.
+ * The 23 known RTE types, split by how the org actually serves them.
  *
  * Probed against a live sandbox on 2026-08-03, which replaced the naming convention this
  * table was first built on. The convention was wrong in both directions, and the real rule
@@ -80,6 +80,22 @@ const ALL_PREFERRED = [...COMMON_FIELDS, ...EXFIL_FIELDS, ...CONTEXT_FIELDS];
  * Re-probed across five orgs — two sandboxes and three production — on 2026-08-03. Every
  * verdict was identical in all five, including the absences, so the negatives are no longer
  * a single-org observation that a different licence might overturn.
+ *
+ * Re-probed again across eight orgs on 2026-09-02, on API v67.0. Every existing verdict held
+ * unchanged. The probe was widened to ask the inverse question — what does describe return
+ * that this table does not list — and found four objects that had been invisible since the
+ * table was written, each unanimous across all eight orgs:
+ *
+ *   - `LoginAnomalyEvent` and `UniversalAnomalyEvent` are ordinary threat-detection pairs
+ *     that simply were never enumerated. `LoginAnomalyEvent` is the costly omission: login
+ *     anomaly is exactly the signal this catalog exists to retain.
+ *   - `IdentityVerificationEvent` is an audit event, directly queryable with no Store.
+ *   - `ApiPrtcPolicyChangeEvent` is streaming-only with no Store, so it joins the bucket
+ *     that can never be captured retroactively.
+ *
+ * The lesson is the same one the naming convention taught: this table's failure mode is
+ * silent omission, not a wrong entry. A missing object produces no error anywhere — the pull
+ * simply never asks for it — so only an inverse probe against describe can find one.
  */
 export const RTE_CATALOG: readonly RteType[] = [
   // Directly queryable; no Store counterpart exists. Verified queryable in the probe org.
@@ -92,9 +108,10 @@ export const RTE_CATALOG: readonly RteType[] = [
   { base: 'LightningUriEvent', preferredFields: ALL_PREFERRED },
   { base: 'LoginAsEvent', preferredFields: ALL_PREFERRED },
   { base: 'IdentityProviderEventStore', preferredFields: ALL_PREFERRED },
+  { base: 'IdentityVerificationEvent', preferredFields: ALL_PREFERRED },
 
-  // Streaming-only base, retained rows in the Store. All eight Stores verified queryable,
-  // and all eight bases verified to reject a query with "does not support query".
+  // Streaming-only base, retained rows in the Store. All ten Stores verified queryable, and
+  // all ten bases verified to reject a query with "does not support query".
   { base: 'ApiAnomalyEvent', store: 'ApiAnomalyEventStore', preferredFields: ALL_PREFERRED },
   { base: 'BulkApiResultEvent', store: 'BulkApiResultEventStore', preferredFields: ALL_PREFERRED },
   {
@@ -115,6 +132,12 @@ export const RTE_CATALOG: readonly RteType[] = [
     store: 'SessionHijackingEventStore',
     preferredFields: ALL_PREFERRED,
   },
+  { base: 'LoginAnomalyEvent', store: 'LoginAnomalyEventStore', preferredFields: ALL_PREFERRED },
+  {
+    base: 'UniversalAnomalyEvent',
+    store: 'UniversalAnomalyEventStore',
+    preferredFields: ALL_PREFERRED,
+  },
 
   // Exist, but are streaming-only with no Store in any org probed — so they can never be
   // captured retroactively. Kept deliberately: the manifest recording them as `not-queryable`
@@ -123,7 +146,8 @@ export const RTE_CATALOG: readonly RteType[] = [
   // apart before it reports an absence.
   { base: 'ConcurLongRunApexErrEvent', preferredFields: ALL_PREFERRED },
   { base: 'OrgLifecycleNotification', preferredFields: ALL_PREFERRED },
+  { base: 'ApiPrtcPolicyChangeEvent', preferredFields: ALL_PREFERRED },
 
-  // `ApexExecutionEvent` was here and is gone: absent from describe in all five orgs, so the
+  // `ApexExecutionEvent` was here and is gone: absent from describe in all eight orgs, so the
   // name appears not to exist rather than to be unlicensed. It cost a 404 per pull.
 ];

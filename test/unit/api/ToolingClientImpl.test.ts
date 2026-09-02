@@ -12,7 +12,7 @@ describe('ToolingClientImpl', () => {
         // Note: conn.tooling has no queryMore — pagination uses conn.request() directly
       },
       request: jest.fn(),
-      getApiVersion: jest.fn().mockReturnValue('62.0'),
+      getApiVersion: jest.fn().mockReturnValue('67.0'),
     };
     client = new ToolingClientImpl(fakeConn);
   });
@@ -36,7 +36,7 @@ describe('ToolingClientImpl', () => {
       fakeConn.tooling.query.mockResolvedValue({
         done: false,
         records: [{ Id: '001' }],
-        nextRecordsUrl: '/services/data/v62.0/tooling/query/01g-next',
+        nextRecordsUrl: '/services/data/v67.0/tooling/query/01g-next',
       });
       // Second page comes via conn.request() (not tooling.queryMore — that doesn't exist)
       fakeConn.request.mockResolvedValueOnce({
@@ -48,7 +48,7 @@ describe('ToolingClientImpl', () => {
       const result = await client.query<{ Id: string }>('SELECT Id FROM ApexClass');
 
       expect(result).toHaveLength(2);
-      expect(fakeConn.request).toHaveBeenCalledWith('/services/data/v62.0/tooling/query/01g-next');
+      expect(fakeConn.request).toHaveBeenCalledWith('/services/data/v67.0/tooling/query/01g-next');
     });
   });
 
@@ -60,7 +60,7 @@ describe('ToolingClientImpl', () => {
       const result = await client.getRecord<typeof mockRecord>('ConnectedApplication', 'abc');
 
       expect(fakeConn.request).toHaveBeenCalledWith(
-        '/services/data/v62.0/tooling/sobjects/ConnectedApplication/abc/'
+        '/services/data/v67.0/tooling/sobjects/ConnectedApplication/abc/'
       );
       expect(result).toEqual(mockRecord);
     });

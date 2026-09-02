@@ -12,7 +12,7 @@ describe('RestClientImpl', () => {
   beforeEach(() => {
     fakeConn = {
       request: jest.fn(),
-      getApiVersion: jest.fn().mockReturnValue('62.0'),
+      getApiVersion: jest.fn().mockReturnValue('67.0'),
     };
     client = new RestClientImpl(fakeConn);
   });
@@ -20,13 +20,13 @@ describe('RestClientImpl', () => {
   it('prepends /services/data/vXX.0 to a path with leading slash', async () => {
     fakeConn.request.mockResolvedValue({ limitInfo: {} });
     await client.get('/limits');
-    expect(fakeConn.request).toHaveBeenCalledWith('/services/data/v62.0/limits');
+    expect(fakeConn.request).toHaveBeenCalledWith('/services/data/v67.0/limits');
   });
 
   it('prepends /services/data/vXX.0 and adds leading slash if missing', async () => {
     fakeConn.request.mockResolvedValue({});
     await client.get('limits');
-    expect(fakeConn.request).toHaveBeenCalledWith('/services/data/v62.0/limits');
+    expect(fakeConn.request).toHaveBeenCalledWith('/services/data/v67.0/limits');
   });
 
   it('returns the response from conn.request', async () => {
@@ -41,7 +41,7 @@ describe('RestClientImpl', () => {
       fakeConn.request.mockResolvedValue('a,b,c\n1,2,3\n');
       await client.getRaw('/sobjects/EventLogFile/0AT000000000001/LogFile');
       expect(fakeConn.request).toHaveBeenCalledWith(
-        '/services/data/v62.0/sobjects/EventLogFile/0AT000000000001/LogFile'
+        '/services/data/v67.0/sobjects/EventLogFile/0AT000000000001/LogFile'
       );
     });
 
@@ -49,7 +49,7 @@ describe('RestClientImpl', () => {
       fakeConn.request.mockResolvedValue('');
       await client.getRaw('sobjects/EventLogFile/ID/LogFile');
       expect(fakeConn.request).toHaveBeenCalledWith(
-        '/services/data/v62.0/sobjects/EventLogFile/ID/LogFile'
+        '/services/data/v67.0/sobjects/EventLogFile/ID/LogFile'
       );
     });
 
@@ -87,7 +87,7 @@ describe('RestClientImpl', () => {
       expect(fs.readFileSync(dest, 'utf-8')).toBe(csv);
       expect(bytes).toBe(Buffer.byteLength(csv, 'utf-8'));
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://example.my.salesforce.com/services/data/v62.0/sobjects/EventLogFile/ID/LogFile',
+        'https://example.my.salesforce.com/services/data/v67.0/sobjects/EventLogFile/ID/LogFile',
         { headers: { Authorization: 'Bearer TOKEN123' } }
       );
     });

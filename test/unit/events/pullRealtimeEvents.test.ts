@@ -311,9 +311,10 @@ describe('classifyRteError', () => {
 });
 
 describe('RTE_CATALOG', () => {
-  // Probed against a live org on 2026-08-03. The split is by event *kind*, not by name:
-  // audit events are queried directly, threat-detection events are streaming-only with a
-  // Store. Getting this backwards is what the probe caught.
+  // Probed against a live org on 2026-08-03 and re-probed across eight orgs on 2026-09-02.
+  // The split is by event *kind*, not by name: audit events are queried directly,
+  // threat-detection events are streaming-only with a Store. Getting this backwards is what
+  // the first probe caught; the second probe found four objects the catalog never listed.
   const DIRECT = [
     'ListViewEvent',
     'ApiEvent',
@@ -323,6 +324,7 @@ describe('RTE_CATALOG', () => {
     'UriEvent',
     'LightningUriEvent',
     'LoginAsEvent',
+    'IdentityVerificationEvent',
   ];
   const STORED = [
     'ApiAnomalyEvent',
@@ -333,10 +335,17 @@ describe('RTE_CATALOG', () => {
     'PermissionSetEvent',
     'ReportAnomalyEvent',
     'SessionHijackingEvent',
+    'LoginAnomalyEvent',
+    'UniversalAnomalyEvent',
   ];
 
   it.each(DIRECT)('declares no Store for %s — verified not to exist', (base) => {
-    expect(RTE_CATALOG.find((e) => e.base === base)?.store).toBeUndefined();
+    // Assert the entry is present *before* asserting it has no Store. `find(...)?.store` is
+    // undefined for a catalog that omits the object entirely, so the absence check alone
+    // passes vacuously — which is how IdentityVerificationEvent stayed missing.
+    const entry = RTE_CATALOG.find((e) => e.base === base);
+    expect(entry).toBeDefined();
+    expect(entry?.store).toBeUndefined();
   });
 
   it.each(STORED)('declares %sStore — verified queryable with a streaming-only base', (base) => {
@@ -346,14 +355,18 @@ describe('RTE_CATALOG', () => {
   it('keeps the streaming-only types that can never be captured retroactively', () => {
     // Their manifest entry is the point: "exists, cannot be read after the fact" is a
     // different answer from "we did not look".
-    for (const base of ['ConcurLongRunApexErrEvent', 'OrgLifecycleNotification']) {
+    for (const base of [
+      'ConcurLongRunApexErrEvent',
+      'OrgLifecycleNotification',
+      'ApiPrtcPolicyChangeEvent',
+    ]) {
       const entry = RTE_CATALOG.find((e) => e.base === base);
       expect(entry).toBeDefined();
       expect(entry?.store).toBeUndefined();
     }
   });
 
-  it('does not list ApexExecutionEvent — absent from describe in all five orgs probed', () => {
+  it('does not list ApexExecutionEvent — absent from describe in all eight orgs probed', () => {
     expect(RTE_CATALOG.find((e) => e.base === 'ApexExecutionEvent')).toBeUndefined();
   });
 
@@ -369,6 +382,8 @@ describe('RTE_CATALOG', () => {
       'LightningUriEventStore',
       'LoginAsEventStore',
       'ConcurLongRunApexErrEventStore',
+      'IdentityVerificationEventStore',
+      'ApiPrtcPolicyChangeEventStore',
     ]);
     for (const entry of RTE_CATALOG) {
       expect(phantom.has(entry.store ?? '')).toBe(false);
