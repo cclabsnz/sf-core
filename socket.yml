@@ -25,8 +25,23 @@ issueRules:
   # The three URLs in src are licence and provenance links carried alongside the embedded
   # web fonts (SIL Open Font License, and the upstream repositories for DM Sans and Fira
   # Code). They are inert text in a comment and a licence header; nothing fetches them.
-  #
-  # This package makes no outbound network call of its own. It talks to the authenticated
-  # Salesforce org its caller supplies, through a Connection the caller owns, and nothing
-  # else — enforced by the network-egress invariant test in the consuming plugin.
   urlStrings: false
+
+# Two further alerts are left ON deliberately, because the honest answer to each is an
+# explanation rather than a suppression. The reasoning is recorded here so it lives with
+# the code, and is repeated for consumers in the plugin's docs/TRUST.md.
+#
+#   "Network access" — accurate, and it is one call to one destination.
+#   src/api/RestClientImpl.ts calls global fetch once, to stream an EventLogFile download
+#   from the instance URL of the org the caller has already authenticated against, using
+#   the caller's own session. Every other request goes through the jsforce Connection the
+#   caller owns. No third-party HTTP client, no telemetry, no analytics endpoint — enforced
+#   by the network-egress invariant test in the consuming plugin.
+#
+#   "Non-permissive License" (OFL-1.1) — this is the font licence, not the code licence.
+#   src/assets/fonts/OFL.txt ships beside the four embedded woff2 families because OFL §1
+#   requires the licence text to travel with redistributed fonts, and they are bundled so
+#   that generated reports embed them as data URIs instead of calling a font CDN. The code
+#   is Apache-2.0 (see LICENSE); per-family copyright is in src/assets/fonts/NOTICE.md.
+#   Turning the rule off would also hide a future dependency that genuinely is
+#   non-permissive, which is a worse trade than answering this one.
