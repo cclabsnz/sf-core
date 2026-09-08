@@ -112,6 +112,31 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
 
   if (findings.length > 0) return { graph: null, findings, report };
 
+  // Copied, never mutated: the caller may still be holding the fragments it passed in.
+  const nodes = fragments.flatMap((f) => f.nodes).map((n) => ({ ...n, attrs: { ...n.attrs } }));
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+
+  for (const f of fragments) {
+    for (const c of f.contributions ?? []) {
+      const target = byId.get(c.nodeId);
+      if (!target) {
+        findings.push({
+          code: RULES.MERGE_CONTRIBUTION_UNRESOLVED,
+          id: c.nodeId,
+          message:
+            `${f.producer ?? 'A fragment'} contributes attributes to ${c.nodeId}, which no ` +
+            'fragment provides.',
+          fix: 'Include the fragment that owns that node, or stop contributing to it.',
+        });
+        continue;
+      }
+      // Namespaced by contributor. An unnamespaced patch makes "who asserted this" unanswerable.
+      const ns = f.producer ?? 'unknown';
+      target.attrs[ns] = { ...(target.attrs[ns] as object | undefined), ...c.attrs };
+      report.contributionsApplied += 1;
+    }
+  }
+
   // The oldest, not the newest. A merged picture is only as fresh as its stalest part, and
   // taking the newest would let a fresh fragment make a month-old one look current. Compare
   // chronologically, not lexically: two independently-written tools are not guaranteed to agree
@@ -127,7 +152,7 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
     schemaVersion: fragments[0].schemaVersion,
     capturedAt,
     orgId: fragments[0].orgId,
-    nodes: fragments.flatMap((f) => f.nodes),
+    nodes,
     edges: fragments.flatMap((f) => f.edges),
     coverage: mergeCoverage(fragments),
   };

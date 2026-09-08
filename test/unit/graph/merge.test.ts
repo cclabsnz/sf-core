@@ -199,3 +199,58 @@ describe('mergeGraphs rejections', () => {
     expect(result.findings.map((f) => f.code)).not.toContain(RULES.MERGE_KIND_NOT_OWNED);
   });
 });
+
+describe('attribute contributions', () => {
+  it('applies a contribution under the contributing producer namespace', () => {
+    // Namespaced because an unnamespaced patch makes "who asserted this" unanswerable, and two
+    // producers writing one key becomes a silent last-writer-wins.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [account] }),
+      fragment({
+        producer: 'orgintel',
+        contributions: [{ nodeId: 'obj.Account', attrs: { recordCount90d: 4210 } }],
+      }),
+    ]);
+    expect(result.findings).toEqual([]);
+    const merged = result.graph!.nodes.find((n) => n.id === 'obj.Account')!;
+    expect(merged.attrs).toEqual({ orgintel: { recordCount90d: 4210 } });
+    expect(result.report.contributionsApplied).toBe(1);
+  });
+
+  it('leaves the owner own attributes untouched', () => {
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [{ ...account, attrs: { custom: false } }] }),
+      fragment({
+        producer: 'orgintel',
+        contributions: [{ nodeId: 'obj.Account', attrs: { recordCount90d: 4210 } }],
+      }),
+    ]);
+    const merged = result.graph!.nodes.find((n) => n.id === 'obj.Account')!;
+    expect(merged.attrs.custom).toBe(false);
+    expect(merged.attrs.orgintel).toEqual({ recordCount90d: 4210 });
+  });
+
+  it('reports a contribution naming a node no fragment provides', () => {
+    // Reported, not dropped: a measurement about a node nobody extracted is a missing fragment,
+    // which the reader needs told rather than silently discarded.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [account] }),
+      fragment({
+        producer: 'orgintel',
+        contributions: [{ nodeId: 'obj.Missing', attrs: { recordCount90d: 1 } }],
+      }),
+    ]);
+    const finding = result.findings.find((f) => f.code === RULES.MERGE_CONTRIBUTION_UNRESOLVED);
+    expect(finding!.id).toBe('obj.Missing');
+  });
+
+  it('does not mutate the fragment it was given', () => {
+    // mergeGraphs is called on documents a caller may still be holding.
+    const owner = fragment({ producer: 'orgviz', nodes: [account] });
+    mergeGraphs([
+      owner,
+      fragment({ producer: 'orgintel', contributions: [{ nodeId: 'obj.Account', attrs: { x: 1 } }] }),
+    ]);
+    expect(owner.nodes[0].attrs).toEqual({});
+  });
+});
