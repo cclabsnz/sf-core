@@ -140,6 +140,69 @@ describe('mergeGraphs', () => {
     expect(findings.map((f) => f.code)).toContain(RULES.EDGE_ENDPOINT_UNRESOLVED);
   });
 
+  it('produces identical nodes, edges and findings regardless of fragment order', () => {
+    // Spec section 12: same input -> identical output, byte for byte. A caller passing files in
+    // a different order must not change what comes back.
+    const a = fragment({
+      producer: 'orgviz',
+      nodes: [account],
+      contributions: undefined,
+    });
+    const b = fragment({
+      producer: 'orgintel',
+      nodes: [orderRouter],
+      capturedAt: '2026-01-01T00:00:00Z',
+      edges: [{
+        from: 'flow.Order_Router', to: 'obj.Account', kind: 'writes', attrs: {},
+        provenance: { source: 'metadata', capturedAt: '2026-01-01T00:00:00Z' },
+      }],
+      contributions: [{ nodeId: 'obj.Account', attrs: { recordCount90d: 4210 } }],
+    });
+    const forward = mergeGraphs([a, b]);
+    const backward = mergeGraphs([b, a]);
+    expect(JSON.stringify(forward.graph!.nodes)).toBe(JSON.stringify(backward.graph!.nodes));
+    expect(JSON.stringify(forward.graph!.edges)).toBe(JSON.stringify(backward.graph!.edges));
+    expect(JSON.stringify(forward.findings)).toBe(JSON.stringify(backward.findings));
+  });
+
+  it('does not mutate a fragment edge either', () => {
+    // Nodes are copied with a fresh attrs object; edges must be too, or a consumer mutating
+    // merged.edges[0].attrs mutates a fragment the caller still holds.
+    const edgeOwner = fragment({
+      producer: 'orgintel',
+      nodes: [orderRouter],
+      edges: [{
+        from: 'flow.Order_Router', to: 'obj.Account', kind: 'writes', attrs: { weight: 1 },
+        provenance: { source: 'metadata', capturedAt: '2026-01-01T00:00:00Z' },
+      }],
+    });
+    const result = mergeGraphs([fragment({ producer: 'orgviz', nodes: [account] }), edgeOwner]);
+    result.graph!.edges[0].attrs.weight = 999;
+    expect(edgeOwner.edges[0].attrs.weight).toBe(1);
+  });
+
+  it('never lets an unparseable capturedAt silently win', () => {
+    // NaN comparisons are always false: an unguarded reduce lets a bad value at index 0 always
+    // win, and a bad value elsewhere always lose. Neither should happen silently.
+    const badFirst = mergeGraphs([
+      fragment({ producer: 'orgviz', capturedAt: 'not-a-date' }),
+      fragment({ producer: 'orgintel', capturedAt: '2026-01-01T00:00:00Z' }),
+    ]);
+    expect(badFirst.graph!.capturedAt).toBe('2026-01-01T00:00:00Z');
+
+    const badSecond = mergeGraphs([
+      fragment({ producer: 'orgviz', capturedAt: '2026-01-01T00:00:00Z' }),
+      fragment({ producer: 'orgintel', capturedAt: 'not-a-date' }),
+    ]);
+    expect(badSecond.graph!.capturedAt).toBe('2026-01-01T00:00:00Z');
+
+    const allBad = mergeGraphs([
+      fragment({ producer: 'orgviz', capturedAt: 'still-not-a-date' }),
+      fragment({ producer: 'orgintel', capturedAt: 'also-not-a-date' }),
+    ]);
+    expect(allBad.graph!.capturedAt).toBe('still-not-a-date');
+  });
+
   it('reports zero fragments as a finding instead of throwing', () => {
     // Array.reduce with no initial value throws on an empty array. A CLI calls this with
     // whatever graph files an operator passed, so an empty list is user input, not a
@@ -172,7 +235,22 @@ describe('mergeGraphs rejections', () => {
     expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_SCHEMA_VERSION_MISMATCH);
   });
 
-  it('refuses a node id claimed by two fragments, naming the id', () => {
+  it('refuses fragments that agree with each other on an unsupported schema version', () => {
+    // Two fragments from a pre-bump build agree with each other and pass the mismatch rule, but
+    // a merged graph carrying a version this build does not support is a day-one experience the
+    // 1.1.0 -> 1.2.0 bump exists to catch.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', schemaVersion: '1.1.0' }),
+      fragment({ producer: 'orgintel', schemaVersion: '1.1.0' }),
+    ]);
+    expect(result.graph).toBeNull();
+    const finding = result.findings.find((f) => f.code === RULES.MERGE_SCHEMA_VERSION_MISMATCH);
+    expect(finding).toBeDefined();
+    expect(finding!.message).toContain('1.1.0');
+    expect(finding!.fix.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a node id claimed by two fragments, naming the id 1-based', () => {
     const result = mergeGraphs([
       fragment({ producer: 'orgviz', nodes: [account] }),
       fragment({ producer: 'orgintel', nodes: [{ ...account }] }),
@@ -180,6 +258,18 @@ describe('mergeGraphs rejections', () => {
     expect(result.graph).toBeNull();
     const collision = result.findings.find((f) => f.code === RULES.MERGE_ID_COLLISION);
     expect(collision!.id).toBe('obj.Account');
+    // Operators pass files 1, 2, 3 -- messages must not read "fragment 0".
+    expect(collision!.message).toContain('fragment 1 and fragment 2');
+  });
+
+  it('reports a duplicate id within one fragment as that fragment claiming it twice', () => {
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [account, { ...account }] }),
+    ]);
+    expect(result.graph).toBeNull();
+    const collision = result.findings.find((f) => f.code === RULES.MERGE_ID_COLLISION);
+    expect(collision!.message).toContain('claimed twice within fragment 1');
+    expect(collision!.message).not.toMatch(/fragment 1 and fragment 1/);
   });
 
   it('refuses a producer emitting a kind it does not own', () => {
@@ -242,6 +332,49 @@ describe('attribute contributions', () => {
     ]);
     const finding = result.findings.find((f) => f.code === RULES.MERGE_CONTRIBUTION_UNRESOLVED);
     expect(finding!.id).toBe('obj.Missing');
+  });
+
+  it('returns a non-null graph when the only finding is an unresolved contribution', () => {
+    // GRAPH_MERGE_CONTRIBUTION_UNRESOLVED is pushed after the four rejections have already
+    // cleared -- it is not one of them, and must never come back with graph: null.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [account] }),
+      fragment({
+        producer: 'orgintel',
+        contributions: [{ nodeId: 'obj.Missing', attrs: { recordCount90d: 1 } }],
+      }),
+    ]);
+    expect(result.findings.map((f) => f.code)).toEqual([RULES.MERGE_CONTRIBUTION_UNRESOLVED]);
+    expect(result.graph).not.toBeNull();
+  });
+
+  it('returns a null graph when a rejection fires, even alongside other findings', () => {
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', orgId: 'org1' }),
+      fragment({ producer: 'orgintel', orgId: 'org2' }),
+    ]);
+    expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_ORG_MISMATCH);
+    expect(result.graph).toBeNull();
+  });
+
+  it('skips a contribution from a fragment with no producer and reports it, without rejecting', () => {
+    // An anonymous fragment's contribution cannot be namespaced, so "who asserted this" would be
+    // unanswerable if it were applied under a shared 'unknown' bucket. It is skipped and named,
+    // not silently merged and not treated as fatal.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [account] }),
+      fragment({ contributions: [{ nodeId: 'obj.Account', attrs: { recordCount90d: 4210 } }] }),
+    ]);
+    expect(result.graph).not.toBeNull();
+    const finding = result.findings.find(
+      (f) => f.code === RULES.MERGE_CONTRIBUTION_UNATTRIBUTED,
+    );
+    expect(finding).toBeDefined();
+    expect(finding!.id).toBe('obj.Account');
+    expect(finding!.fix.length).toBeGreaterThan(0);
+    const merged = result.graph!.nodes.find((n) => n.id === 'obj.Account')!;
+    expect(merged.attrs).toEqual({});
+    expect(result.report.contributionsApplied).toBe(0);
   });
 
   it('does not mutate the fragment it was given', () => {
