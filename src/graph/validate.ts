@@ -10,6 +10,18 @@ import { codepointCompare } from '../lib/order.js';
 
 // ajv exports the class as a named export alongside the default, and the named one is what
 // survives the CommonJS-to-NodeNext boundary as a constructable value.
+// `allErrors: true` is deliberate, and the risk Semgrep's ajv-allerrors-true rule guards against
+// does not reach it. That rule is about unbounded error allocation: a schema containing `anyOf`,
+// `oneOf`, `allOf`, `not` or `patternProperties` can make an attacker's input produce errors
+// combinatorially. GRAPH_SCHEMA contains none of those keywords, its six `$ref`s point at flat
+// non-recursive `$defs`, and the schema is a constant in this package — only the document varies,
+// so error count is bounded linearly by the document's own size.
+//
+// It is also load-bearing. This validator's contract is that one run reports every problem with
+// its rule code, the offending id and a fix, so an operator repairs a graph in one pass. Stopping
+// at the first error would report one problem per run against documents that routinely carry
+// thousands of nodes.
+// nosemgrep: javascript.ajv.security.audit.ajv-allerrors-true
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validateShape = ajv.compile(GRAPH_SCHEMA);
 
