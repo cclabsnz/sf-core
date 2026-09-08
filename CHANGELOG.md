@@ -10,7 +10,45 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
-Merged to `main`, not yet released.
+Nothing yet.
+
+## [0.5.0] — 2026-09-09
+
+**The canonical org graph, and a merge that refuses to state something false.**
+
+### Added
+
+- **The canonical org graph.** `CanonicalGraph`, `GraphNode`/`GraphEdge`, `GRAPH_SCHEMA`,
+  `validateGraph`, `GRAPH_KIND_TABLE` and the `GRAPH_RULES` codes, moved here from the
+  `sf-orgviz` plugin that owned them. Two tools can now produce fragments of one schema without
+  either depending on the other. `GRAPH_KIND_TABLE` declares which producer owns each node kind,
+  so the split is enforced rather than documented — ownership is per kind and not per layer
+  because node ids are `prefix.name`, which makes disjoint kinds the thing that actually keeps
+  ids disjoint.
+- **`mergeGraphs(fragments)`.** Unions fragments and refuses the merge when it would state
+  something false: fragments from different orgs, fragments at different schema versions, one
+  node id claimed twice, or a producer emitting a kind it does not own. A rejection returns no
+  graph at all, because a partial merge that still looks like a complete picture is worse than
+  none. `capturedAt` on a merged graph is the **oldest** fragment's — a merged picture is only as
+  fresh as its stalest part, and taking the newest would let a fresh run make a stale one look
+  current — and coverage is unioned, so a fact one producer could not read stays unread after
+  merging with one that could.
+- **Attribute contributions.** A producer may state a measurement about a node another producer
+  owns, applied under the contributor's own namespace so that who asserted a value stays
+  answerable and two producers writing one key cannot become a silent last-writer-wins. An
+  unresolved contribution is reported rather than fatal: it means a fragment is missing, not that
+  the graph is wrong.
+- **`roleOf(objectName)`.** The seven-role Salesforce object classifier, ported from
+  `sf-orgintel`, returning the already-published `ObjectLayer`. Renamed from `layerOf` on the way
+  in, because this package also exports `layerOfKind`, which classifies on an entirely different
+  axis.
+
+### Changed
+
+- `ajv` moved from a development dependency to a runtime one. The graph validator ships from here
+  now, so consumers receive it transitively; this package previously declared no runtime
+  dependencies at all. The existing `fast-uri@3` override, which exists because of ajv's own
+  dependency chain, is unchanged.
 
 ## [0.4.0] — 2026-09-09
 
