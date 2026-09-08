@@ -6,3 +6,4 @@ export * from './schema.js';
 export * from './validate.js';
 export * from './coverage.js';
 export * from './roleOf.js';
+export * from './merge.js';
