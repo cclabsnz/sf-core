@@ -54,7 +54,10 @@ export function validateGraph(doc: unknown): GraphDiagnostic[] {
         message:
           `schemaVersion is ${String(candidate.schemaVersion)}; this build supports ` +
           `${SUPPORTED_GRAPH_SCHEMA_VERSION}.`,
-        fix: `Re-extract the graph with this version of the tool, or run the migration to ${SUPPORTED_GRAPH_SCHEMA_VERSION}.`,
+        // Re-extraction is the only remedy, so it is the only one offered. This previously also
+        // promised a migration, which was never written -- and the promise went unnoticed because
+        // the finding was unreachable until the schema version first moved.
+        fix: `Re-extract the graph with a build that writes ${SUPPORTED_GRAPH_SCHEMA_VERSION}. There is no in-place migration between schema versions.`,
       },
     ];
   }

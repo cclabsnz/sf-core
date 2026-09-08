@@ -34,6 +34,20 @@ describe('validateGraph — structural', () => {
     expect(findings[0].fix).toBeTruthy();
   });
 
+  it('offers a remedy that exists, rather than one that sounds plausible', () => {
+    // `fix` carries its own contract: a finding a reader cannot act on is a bug report. The
+    // `toBeTruthy()` above satisfies the letter of that and cannot tell an action apart from a
+    // promise, which is how this message spent its whole life offering "run the migration" when
+    // no migration was ever written. It went unnoticed because it was unreachable until the
+    // schema version first moved -- SUPPORTED_GRAPH_SCHEMA_VERSION had been set once and never
+    // changed, so no document could disagree with it.
+    const [finding] = validateGraph({ ...minimal, schemaVersion: '2.0.0' });
+    expect(finding.fix).toMatch(/re-extract/i);
+    // Naming a migration to say none exists is useful — it stops the reader searching. Directing
+    // them to run one is the defect, so that is what this forbids.
+    expect(finding.fix).not.toMatch(/\b(run|apply|use|perform)\b[^.]*\bmigration\b/i);
+  });
+
   it('names the offending edge when provenance is missing', () => {
     const findings = validateGraph({
       ...minimal,
