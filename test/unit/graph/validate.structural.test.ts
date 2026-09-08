@@ -49,3 +49,40 @@ describe('validateGraph — structural', () => {
     expect(validateGraph(null).length).toBeGreaterThan(0);
   });
 });
+
+describe('fragment envelope', () => {
+  const base = {
+    schemaVersion: '1.2.0',
+    capturedAt: '2026-01-01T00:00:00Z',
+    orgId: 'org1',
+    nodes: [],
+    edges: [],
+    coverage: { notes: [], unavailable: [] },
+  };
+
+  it('accepts a document with no producer and no contributions', () => {
+    // Both are optional: a merged graph has no single producer, and most fragments contribute
+    // no attributes to anyone else's nodes.
+    expect(validateGraph(base)).toEqual([]);
+  });
+
+  it('accepts a fragment that names its producer and carries contributions', () => {
+    expect(
+      validateGraph({
+        ...base,
+        producer: 'orgintel',
+        contributions: [{ nodeId: 'obj.Account', attrs: { recordCount90d: 4210 } }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects a producer that is not a known tool', () => {
+    const findings = validateGraph({ ...base, producer: 'somebody-else' });
+    expect(findings.map((f) => f.code)).toContain(RULES.SCHEMA_SHAPE);
+  });
+
+  it('rejects a contribution with no node id', () => {
+    const findings = validateGraph({ ...base, contributions: [{ attrs: { x: 1 } }] });
+    expect(findings.map((f) => f.code)).toContain(RULES.SCHEMA_SHAPE);
+  });
+});
