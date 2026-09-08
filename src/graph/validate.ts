@@ -1,0 +1,202 @@
+// src/graph/validate.ts
+// Runs before any renderer touches a document. Returns findings; never throws, never renders
+// partially. Spec section 5.
+import { Ajv, type ErrorObject } from 'ajv';
+import { GRAPH_SCHEMA } from './schema.js';
+import { RULES, type Finding } from './rules.js';
+import { SUPPORTED_SCHEMA_VERSION, type CanonicalGraph, type GraphNode } from './types.js';
+import { isKnownKind, levelOf, layerOf } from './kinds.js';
+import { codepointCompare } from '../lib/order.js';
+
+// ajv exports the class as a named export alongside the default, and the named one is what
+// survives the CommonJS-to-NodeNext boundary as a constructable value.
+const ajv = new Ajv({ allErrors: true, strict: false });
+const validateShape = ajv.compile(GRAPH_SCHEMA);
+
+/** Edge identity used in findings, so a reader can locate the offending edge in the file. */
+export function edgeId(e: { from: string; to: string }): string {
+  return `${e.from}->${e.to}`;
+}
+
+export function validateGraph(doc: unknown): Finding[] {
+  if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+    return [
+      {
+        code: RULES.NOT_AN_OBJECT,
+        id: 'document',
+        message: 'The graph document is not a JSON object.',
+        fix: 'Pass the path to a canonical graph document written by this tool.',
+      },
+    ];
+  }
+
+  const candidate = doc as Partial<CanonicalGraph>;
+
+  if (candidate.schemaVersion !== SUPPORTED_SCHEMA_VERSION) {
+    // Loud, not partial: a document from another schema version is not partially loadable,
+    // because the fields that changed are exactly the ones a reader would misread.
+    return [
+      {
+        code: RULES.SCHEMA_VERSION_UNSUPPORTED,
+        id: 'document',
+        message:
+          `schemaVersion is ${String(candidate.schemaVersion)}; this build supports ` +
+          `${SUPPORTED_SCHEMA_VERSION}.`,
+        fix: `Re-extract the graph with this version of the tool, or run the migration to ${SUPPORTED_SCHEMA_VERSION}.`,
+      },
+    ];
+  }
+
+  if (!validateShape(doc)) {
+    // A missing edge provenance is reported under its own code rather than as a generic shape
+    // error, because it is the one shape failure that has a specific remedy and because
+    // consumers key off the code.
+    const g = doc as { edges?: Array<{ from?: string; to?: string; provenance?: unknown }> };
+    const provenanceFindings: Finding[] = (g.edges ?? [])
+      .filter((e) => e !== null && typeof e === 'object' && e.provenance === undefined)
+      .map((e) => ({
+        code: RULES.EDGE_MISSING_PROVENANCE,
+        id: edgeId({ from: String(e.from), to: String(e.to) }),
+        message: 'Edge carries no provenance.',
+        fix: "Add provenance with source 'metadata', 'runtime' or 'derived'.",
+      }));
+    if (provenanceFindings.length > 0) return provenanceFindings;
+
+    return (validateShape.errors ?? []).map((e: ErrorObject) => ({
+      code: RULES.SCHEMA_SHAPE,
+      id: e.instancePath || 'document',
+      message: `${e.instancePath || 'document'} ${e.message ?? 'failed schema validation'}.`,
+      fix: 'Correct the field named in the path so it matches the documented shape.',
+    }));
+  }
+
+  // ajv's compiled function is a type guard, so `doc` is narrowed to its own inferred shape
+  // here rather than to ours. The double assertion is deliberate: the schema is what makes the
+  // claim true, and it has just run.
+  const graph = doc as unknown as CanonicalGraph;
+  return semanticFindings(graph);
+}
+
+/**
+ * Cross-referencing rules JSON Schema cannot express. Findings are accumulated rather than
+ * short-circuited: a reader fixing a document wants the whole list, not one error per run.
+ * Sorted by id then code so two runs over the same document report identically.
+ */
+function semanticFindings(graph: CanonicalGraph): Finding[] {
+  const findings: Finding[] = [];
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+
+  const seen = new Set<string>();
+  for (const n of graph.nodes) {
+    if (seen.has(n.id)) {
+      findings.push({
+        code: RULES.ID_DUPLICATE, id: n.id,
+        message: `Duplicate node id ${n.id}.`,
+        fix: 'Node ids are content-derived and unique. Two nodes derived the same id — namespace them by kind.',
+      });
+    }
+    seen.add(n.id);
+
+    if (!n.id.includes('.')) {
+      findings.push({
+        code: RULES.ID_NOT_NAMESPACED, id: n.id,
+        message: `Node id ${n.id} is not namespaced by kind.`,
+        fix: 'Prefix the id with its kind namespace, for example obj.Account or permset.Sales_Ops.',
+      });
+    }
+
+    if (!isKnownKind(n.kind)) {
+      findings.push({
+        code: RULES.UNKNOWN_KIND, id: n.id,
+        message: `Unknown kind ${n.kind}.`,
+        fix: 'Add the kind to KIND_TABLE in src/graph/kinds.ts with its layer and level, or correct the node.',
+      });
+    } else {
+      if (n.level !== levelOf(n.kind)) {
+        findings.push({
+          code: RULES.LEVEL_KIND_MISMATCH, id: n.id,
+          message: `Node ${n.id} stores level ${n.level}; kind ${n.kind} is level ${levelOf(n.kind)}.`,
+          fix: `Set level to ${levelOf(n.kind)}. Level is a pure function of kind; the stored value is a convenience copy.`,
+        });
+      }
+      if (n.layer !== layerOf(n.kind)) {
+        findings.push({
+          code: RULES.LAYER_KIND_MISMATCH, id: n.id,
+          message: `Node ${n.id} stores layer ${n.layer}; kind ${n.kind} is layer ${layerOf(n.kind)}.`,
+          fix: `Set layer to ${layerOf(n.kind)}.`,
+        });
+      }
+    }
+
+    if (n.level === 0 && n.parent !== null) {
+      findings.push({
+        code: RULES.ROOT_HAS_PARENT, id: n.id,
+        message: `Level 0 node ${n.id} carries a parent.`,
+        fix: 'Set parent to null. Level 0 is the root of the containment tree.',
+      });
+    }
+
+    // A null parent above level 0 is deliberately not a finding. It means extracted but not
+    // grouped, and the selector reports it as unattributed. Spec section 2.3.
+    if (n.parent !== null) {
+      const parent = byId.get(n.parent);
+      if (!parent) {
+        findings.push({
+          code: RULES.PARENT_UNRESOLVED, id: n.id,
+          message: `Parent ${n.parent} of ${n.id} is not in the document.`,
+          fix: 'Add the parent node, or set parent to null to report this node as unattributed.',
+        });
+      } else if (parent.level >= n.level) {
+        findings.push({
+          code: RULES.LEVEL_PARENT_ORDER, id: n.id,
+          message: `Parent ${parent.id} is level ${parent.level}; child ${n.id} is level ${n.level}.`,
+          fix: 'A parent must sit at a strictly lower level than its child.',
+        });
+      }
+    }
+  }
+
+  for (const n of graph.nodes) {
+    if (inCycle(n.id, byId)) {
+      findings.push({
+        code: RULES.PARENT_CYCLE, id: n.id,
+        message: `Node ${n.id} is part of a parent cycle.`,
+        fix: 'Break the cycle: containment must be a tree rooted at a level 0 node.',
+      });
+    }
+  }
+
+  for (const e of graph.edges) {
+    const id = edgeId(e);
+    if (e.provenance.source === 'derived' && !e.provenance.rule) {
+      findings.push({
+        code: RULES.DERIVED_MISSING_RULE, id,
+        message: 'Derived edge does not name the rule that produced it.',
+        fix: 'Set provenance.rule to the identifier of the aggregation rule.',
+      });
+    }
+    for (const endpoint of [e.from, e.to]) {
+      if (!byId.has(endpoint)) {
+        findings.push({
+          code: RULES.EDGE_ENDPOINT_UNRESOLVED, id,
+          message: `Edge endpoint ${endpoint} is not in the document.`,
+          fix: 'Add the missing node, or remove the edge.',
+        });
+      }
+    }
+  }
+
+  return findings.sort((a, b) => codepointCompare(a.id, b.id) || codepointCompare(a.code, b.code));
+}
+
+/** Walks the parent chain with a visited set, so a cycle terminates instead of hanging. */
+function inCycle(start: string, byId: Map<string, GraphNode>): boolean {
+  const visited = new Set<string>();
+  let current: string | null = start;
+  while (current !== null) {
+    if (visited.has(current)) return true;
+    visited.add(current);
+    current = byId.get(current)?.parent ?? null;
+  }
+  return false;
+}
