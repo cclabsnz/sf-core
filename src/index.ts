@@ -96,3 +96,8 @@ export * from './platform/index.js';
 
 // --- IR schemas (typed contracts + JSON schema access) ---
 export * from './schemas/index.js';
+
+// The canonical org graph. Owned here rather than in sf-orgviz so that sf-orgviz and
+// sf-orgintel can both produce fragments of one schema without either depending on the other.
+// See sf-orgviz/docs/CONVERGENCE_SPEC.md section 1.2.
+export * from './graph/index.js';
