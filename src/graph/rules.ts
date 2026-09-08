@@ -18,6 +18,13 @@ export const RULES = {
   LEVEL_PARENT_ORDER: 'GRAPH_LEVEL_PARENT_ORDER',
   PARENT_CYCLE: 'GRAPH_PARENT_CYCLE',
   EDGE_ENDPOINT_UNRESOLVED: 'GRAPH_EDGE_ENDPOINT_UNRESOLVED',
+  // Merge. Separate codes from the validator's, because a reader acts differently on them: a
+  // validation finding is about one document, a merge finding is about two disagreeing.
+  MERGE_ORG_MISMATCH: 'GRAPH_MERGE_ORG_MISMATCH',
+  MERGE_SCHEMA_VERSION_MISMATCH: 'GRAPH_MERGE_SCHEMA_VERSION_MISMATCH',
+  MERGE_ID_COLLISION: 'GRAPH_MERGE_ID_COLLISION',
+  MERGE_KIND_NOT_OWNED: 'GRAPH_MERGE_KIND_NOT_OWNED',
+  MERGE_CONTRIBUTION_UNRESOLVED: 'GRAPH_MERGE_CONTRIBUTION_UNRESOLVED',
 } as const;
 
 export type RuleCode = (typeof RULES)[keyof typeof RULES];
