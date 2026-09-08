@@ -18,3 +18,4 @@ CLAUDE.md
 # public. The other two repos are ignored only by a `*` gitignore the tool happens to
 # write inside the directory; a rule here does not depend on that file existing.
 /.superpowers/
+/.claude/
