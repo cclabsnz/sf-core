@@ -13,7 +13,7 @@
 
 import type { ObjectLayer } from '../schemas/index.js';
 
-export const LAYER_DESCRIPTIONS: Readonly<Record<ObjectLayer, string>> = {
+export const OBJECT_LAYER_DESCRIPTIONS: Readonly<Record<ObjectLayer, string>> = {
   integration: 'platform events and external data',
   configuration: 'custom metadata driving behaviour',
   business: 'business process',

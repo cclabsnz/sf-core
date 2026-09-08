@@ -24,6 +24,11 @@ describe('roleOf', () => {
     expect(roleOf('AccountHistory')).toBe('sharing');
   });
 
+  it('classifies logging and content objects', () => {
+    expect(roleOf('LogEntry__c')).toBe('observability');
+    expect(roleOf('ContentDocument')).toBe('content');
+  });
+
   it('falls back to business, which is the useful default', () => {
     expect(roleOf('Order__c')).toBe('business');
   });
