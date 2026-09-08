@@ -14,6 +14,8 @@ export const GRAPH_SCHEMA = {
     nodes: { type: 'array', items: { $ref: '#/$defs/node' } },
     edges: { type: 'array', items: { $ref: '#/$defs/edge' } },
     coverage: { $ref: '#/$defs/coverage' },
+    producer: { enum: ['orgviz', 'orgintel'] },
+    contributions: { type: 'array', items: { $ref: '#/$defs/contribution' } },
   },
   $defs: {
     provenance: {
@@ -53,6 +55,15 @@ export const GRAPH_SCHEMA = {
         kind: { type: 'string', minLength: 1 },
         attrs: { type: 'object' },
         provenance: { $ref: '#/$defs/provenance' },
+      },
+    },
+    contribution: {
+      type: 'object',
+      required: ['nodeId', 'attrs'],
+      additionalProperties: false,
+      properties: {
+        nodeId: { type: 'string', minLength: 1 },
+        attrs: { type: 'object' },
       },
     },
     coverage: {

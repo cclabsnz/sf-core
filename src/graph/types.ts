@@ -65,6 +65,17 @@ export interface Coverage {
   unavailable: Unavailable[];
 }
 
+/**
+ * A measurement about a node another producer owns. `recordCount90d` on an `obj.*` node is the
+ * case that forced this: it is a fact about a node sf-orgviz owns, measured by sf-orgintel,
+ * which has no other reason to emit that node. Applied under the contributor's namespace, never
+ * merged into `attrs` directly. See sf-orgviz/docs/CONVERGENCE_SPEC.md section 3.3.
+ */
+export interface AttributeContribution {
+  nodeId: string;
+  attrs: Record<string, unknown>;
+}
+
 export interface CanonicalGraph {
   schemaVersion: string;
   capturedAt: string;
@@ -72,11 +83,15 @@ export interface CanonicalGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
   coverage: Coverage;
+  /** Which tool wrote this fragment. Absent on a merged graph, which has no single producer. */
+  producer?: Producer;
+  contributions?: AttributeContribution[];
 }
 
 /**
- * 1.1.0 since `coverage` was added. The 1.0.0 schema set additionalProperties:false, so a 1.0.0
- * reader rejects a 1.1.0 document — breaking under GRAPH_EXPORT_SPEC section 3, hence the bump.
- * No 1.0.0 documents exist outside the test fixture, so the migration is the fixture edit.
+ * 1.2.0 since `producer` and `contributions` were added, both optional. The 1.0.0 schema set
+ * additionalProperties:false, so a 1.1.0 reader rejects a 1.2.0 document — breaking under
+ * GRAPH_EXPORT_SPEC section 3, hence the exact-equality check and the bump. No documents exist
+ * outside this repo's fixtures (sf-orgviz is unpublished), so the migration is the fixture edit.
  */
-export const SUPPORTED_SCHEMA_VERSION = '1.1.0';
+export const SUPPORTED_SCHEMA_VERSION = '1.2.0';

@@ -13,9 +13,9 @@ const doc = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe('schema 1.1.0 coverage', () => {
-  it('supports 1.1.0', () => {
-    expect(SUPPORTED_SCHEMA_VERSION).toBe('1.1.0');
+describe('schema 1.2.0 coverage', () => {
+  it('supports 1.2.0', () => {
+    expect(SUPPORTED_SCHEMA_VERSION).toBe('1.2.0');
   });
 
   it('accepts a document carrying coverage', () => {
