@@ -12,6 +12,14 @@ CycloneDX SBOM for the build.
 
 Merged to `main`, not yet released.
 
+## [0.4.0] — 2026-09-09
+
+**Four missing Real-Time Event objects, and triage that matches what ships.**
+
+Minor rather than patch: a consumer that changes nothing now captures four event
+types it did not capture before, so output moves under it. The exported surface is
+unchanged.
+
 ### Security
 
 - `js-yaml` override raised to the first patched version, closing GHSA-5p4m-2wfm-xmqj
@@ -43,6 +51,16 @@ Merged to `main`, not yet released.
   Store and for an entry that is absent entirely — so it could not fail for a missing object,
   which is how `IdentityVerificationEvent` stayed missing. It now asserts the entry exists
   first. (#13)
+- **The Socket triage claimed something untrue of this package.** `socket.yml` stated that it
+  "makes no outbound network call of its own". `src/api/RestClientImpl.ts` calls global
+  `fetch` to stream an EventLogFile download, which is why Socket reports network access and
+  records `net: true`. The surrounding sentences were right about the destination, so the
+  claim read as true while the sentence carrying it was false — the worst shape for a
+  statement a reviewer is invited to verify. It now says what the call is: one `fetch`, to
+  the instance URL of an org the caller already authenticated against, on the caller's own
+  session. The OFL-1.1 licence alert, previously unanswered, is answered in the same place:
+  it describes the bundled fonts, not the code, which stays Apache-2.0. Neither rule is
+  suppressed. (#15)
 
 ### Added
 
@@ -87,6 +105,7 @@ hourly capture path that dependants build on.
 
 Initial internal releases: API clients, org context, findings model and report rendering.
 
-[Unreleased]: https://github.com/cclabsnz/sf-core/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/cclabsnz/sf-core/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.2.0
