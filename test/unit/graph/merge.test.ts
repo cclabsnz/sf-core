@@ -150,3 +150,52 @@ describe('mergeGraphs', () => {
     expect(result.report).toEqual({ fragments: [], contributionsApplied: 0 });
   });
 });
+
+describe('mergeGraphs rejections', () => {
+  it('refuses fragments from different orgs', () => {
+    // Merging two orgs produces a picture of neither.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', orgId: 'org1' }),
+      fragment({ producer: 'orgintel', orgId: 'org2' }),
+    ]);
+    expect(result.graph).toBeNull();
+    expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_ORG_MISMATCH);
+    expect(result.findings.every((f) => f.fix.length > 0)).toBe(true);
+  });
+
+  it('refuses fragments at different schema versions', () => {
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz' }),
+      fragment({ producer: 'orgintel', schemaVersion: '1.1.0' }),
+    ]);
+    expect(result.graph).toBeNull();
+    expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_SCHEMA_VERSION_MISMATCH);
+  });
+
+  it('refuses a node id claimed by two fragments, naming the id', () => {
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', nodes: [account] }),
+      fragment({ producer: 'orgintel', nodes: [{ ...account }] }),
+    ]);
+    expect(result.graph).toBeNull();
+    const collision = result.findings.find((f) => f.code === RULES.MERGE_ID_COLLISION);
+    expect(collision!.id).toBe('obj.Account');
+  });
+
+  it('refuses a producer emitting a kind it does not own', () => {
+    // The split is enforced, not documented: sf-orgviz emitting a flow node means its
+    // extraction started reading Flow XML, which is a design change, not a merge input.
+    const result = mergeGraphs([fragment({ producer: 'orgviz', nodes: [orderRouter] })]);
+    expect(result.graph).toBeNull();
+    const finding = result.findings.find((f) => f.code === RULES.MERGE_KIND_NOT_OWNED);
+    expect(finding!.id).toBe('flow.Order_Router');
+    expect(finding!.message).toContain('orgintel');
+  });
+
+  it('says nothing about ownership when a fragment does not name its producer', () => {
+    // An unnamed producer cannot violate an ownership rule. It is a fragment written by hand or
+    // by an older build, and the id-collision rule still covers the harm ownership prevents.
+    const result = mergeGraphs([fragment({ nodes: [orderRouter] })]);
+    expect(result.findings.map((f) => f.code)).not.toContain(RULES.MERGE_KIND_NOT_OWNED);
+  });
+});
