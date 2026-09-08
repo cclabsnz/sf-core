@@ -12,6 +12,24 @@ CycloneDX SBOM for the build.
 
 Nothing yet.
 
+## [0.5.1] — 2026-09-09
+
+### Fixed
+
+- **The unsupported-schema-version finding offered a remedy that does not exist.** Its `fix` read
+  "Re-extract the graph with this version of the tool, or run the migration to 1.2.0", and no
+  migration was ever written — `docs/` in the consuming repo explicitly declines to write one. A
+  reader hitting it went looking for a command that is not there, unsure whether they had missed a
+  step or the tool was wrong.
+
+  It survived because it was unreachable. `SUPPORTED_GRAPH_SCHEMA_VERSION` was set once and never
+  moved, so no document could disagree with it and the finding could not fire; 0.5.0's bump to
+  `1.2.0` was the first thing that made it reachable, in the same release that first published it
+  to a second consumer. The existing test asserted only that `fix` was non-empty, which is the
+  letter of that field's contract — "a finding a reader cannot act on is a bug report" — and could
+  not tell an action apart from a promise. A test now pins that the fix does not direct anyone to
+  run a migration, while still allowing it to say that none exists, which is worth saying.
+
 ## [0.5.0] — 2026-09-09
 
 **The canonical org graph, and a merge that refuses to state something false.**
