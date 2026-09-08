@@ -59,6 +59,17 @@ describe('mergeGraphs', () => {
     expect(result.graph!.capturedAt).toBe('2026-01-01T00:00:00Z');
   });
 
+  it('compares capturedAt chronologically, not lexically', () => {
+    // '...+05:00' at 23:00 is 18:00 UTC -- chronologically OLDER than '...Z' at 20:00 UTC, but
+    // lexical `<` sorts the offset string after the Z string. A merge that compares strings
+    // would pick the wrong one here.
+    const result = mergeGraphs([
+      fragment({ producer: 'orgviz', capturedAt: '2026-01-02T23:00:00+05:00' }),
+      fragment({ producer: 'orgintel', capturedAt: '2026-01-02T20:00:00Z' }),
+    ]);
+    expect(result.graph!.capturedAt).toBe('2026-01-02T23:00:00+05:00');
+  });
+
   it('keeps every fragment own capture time in the report', () => {
     const result = mergeGraphs([
       fragment({ producer: 'orgviz', capturedAt: '2026-01-02T00:00:00Z' }),
@@ -127,5 +138,15 @@ describe('mergeGraphs', () => {
     expect(result.graph).not.toBeNull();
     const findings = validateGraph(result.graph);
     expect(findings.map((f) => f.code)).toContain(RULES.EDGE_ENDPOINT_UNRESOLVED);
+  });
+
+  it('reports zero fragments as a finding instead of throwing', () => {
+    // Array.reduce with no initial value throws on an empty array. A CLI calls this with
+    // whatever graph files an operator passed, so an empty list is user input, not a
+    // programming error, and mergeGraphs must stay total: every failure mode is a Finding.
+    const result = mergeGraphs([]);
+    expect(result.graph).toBeNull();
+    expect(result.findings.map((f) => f.code)).toEqual([RULES.MERGE_NO_FRAGMENTS]);
+    expect(result.report).toEqual({ fragments: [], contributionsApplied: 0 });
   });
 });
