@@ -7,6 +7,14 @@ export type Layer = 'landscape' | 'domain' | 'data' | 'process' | 'access' | 'ru
 /** How zoomed out a node is. Independent of `Layer`. Spec section 2.2. */
 export type Level = 0 | 1 | 2 | 3;
 
+/**
+ * Which tool emits this kind. Ownership is per kind rather than per layer because
+ * sf-orgintel's anatomy collectors gather landscape-layer facts -- sites, products, personas --
+ * that sf-orgviz has no reason to extract. Node ids are `prefix.name`, so disjoint kinds give
+ * the disjoint ids the merge needs. See sf-orgviz/docs/CONVERGENCE_SPEC.md section 1.1.
+ */
+export type Producer = 'orgviz' | 'orgintel';
+
 export type ProvenanceSource = 'metadata' | 'runtime' | 'derived';
 
 export interface Provenance {
