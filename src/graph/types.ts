@@ -1,11 +1,11 @@
 // src/graph/types.ts
 // The canonical graph. Layers are projections over this document; there is no second model.
 
-/** What kind of thing a node is. Independent of `Level`. Spec section 2. */
-export type Layer = 'landscape' | 'domain' | 'data' | 'process' | 'access' | 'runtime';
+/** What kind of thing a node is. Independent of `GraphLevel`. Spec section 2. */
+export type GraphLayer = 'landscape' | 'domain' | 'data' | 'process' | 'access' | 'runtime';
 
-/** How zoomed out a node is. Independent of `Layer`. Spec section 2.2. */
-export type Level = 0 | 1 | 2 | 3;
+/** How zoomed out a node is. Independent of `GraphLayer`. Spec section 2.2. */
+export type GraphLevel = 0 | 1 | 2 | 3;
 
 /**
  * Which tool emits this kind. Ownership is per kind rather than per layer because
@@ -13,12 +13,12 @@ export type Level = 0 | 1 | 2 | 3;
  * that sf-orgviz has no reason to extract. Node ids are `prefix.name`, so disjoint kinds give
  * the disjoint ids the merge needs. See sf-orgviz/docs/CONVERGENCE_SPEC.md section 1.1.
  */
-export type Producer = 'orgviz' | 'orgintel';
+export type GraphProducer = 'orgviz' | 'orgintel';
 
-export type ProvenanceSource = 'metadata' | 'runtime' | 'derived';
+export type GraphProvenanceSource = 'metadata' | 'runtime' | 'derived';
 
-export interface Provenance {
-  source: ProvenanceSource;
+export interface GraphProvenance {
+  source: GraphProvenanceSource;
   capturedAt: string;
   /** Required when `source` is 'derived': names the rule that produced this. Spec section 4. */
   rule?: string;
@@ -31,13 +31,13 @@ export interface GraphNode {
   /** Deterministic and content-derived, namespaced by kind: `obj.Account`. Never an index. */
   id: string;
   kind: string;
-  layer: Layer;
-  level: Level;
+  layer: GraphLayer;
+  level: GraphLevel;
   /** Null at level 0. Above it, null means extracted but not yet grouped. Spec section 2.3. */
   parent: string | null;
   label: string;
   attrs: Record<string, unknown>;
-  provenance: Provenance;
+  provenance: GraphProvenance;
 }
 
 export interface GraphEdge {
@@ -45,11 +45,11 @@ export interface GraphEdge {
   to: string;
   kind: string;
   attrs: Record<string, unknown>;
-  provenance: Provenance;
+  provenance: GraphProvenance;
 }
 
 /** Why part of the org is absent from the document. `deferred` was never attempted. */
-export interface Unavailable {
+export interface GraphUnavailable {
   /** Stable dotted key naming what is missing, e.g. `landscape.connectedApps`. */
   scope: string;
   reason: 'deferred' | 'failed';
@@ -60,9 +60,9 @@ export interface Unavailable {
  * What could not be gathered. Absence is data: a diagram that silently omits a layer nobody was
  * allowed to read is a lie, and `notes` alone is prose a consumer cannot key off.
  */
-export interface Coverage {
+export interface GraphCoverage {
   notes: string[];
-  unavailable: Unavailable[];
+  unavailable: GraphUnavailable[];
 }
 
 /**
@@ -82,9 +82,9 @@ export interface CanonicalGraph {
   orgId: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
-  coverage: Coverage;
+  coverage: GraphCoverage;
   /** Which tool wrote this fragment. Absent on a merged graph, which has no single producer. */
-  producer?: Producer;
+  producer?: GraphProducer;
   contributions?: AttributeContribution[];
 }
 
@@ -94,4 +94,4 @@ export interface CanonicalGraph {
  * GRAPH_EXPORT_SPEC section 3, hence the exact-equality check and the bump. No documents exist
  * outside this repo's fixtures (sf-orgviz is unpublished), so the migration is the fixture edit.
  */
-export const SUPPORTED_SCHEMA_VERSION = '1.2.0';
+export const SUPPORTED_GRAPH_SCHEMA_VERSION = '1.2.0';

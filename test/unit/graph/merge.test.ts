@@ -5,7 +5,7 @@ import { describe, it, expect } from '@jest/globals';
 import { mergeGraphs } from '../../../src/graph/merge.js';
 import type { CanonicalGraph } from '../../../src/graph/types.js';
 import { validateGraph } from '../../../src/graph/validate.js';
-import { RULES } from '../../../src/graph/rules.js';
+import { GRAPH_RULES } from '../../../src/graph/rules.js';
 
 function fragment(over: Partial<CanonicalGraph>): CanonicalGraph {
   return {
@@ -137,7 +137,7 @@ describe('mergeGraphs', () => {
     // The merge itself succeeds -- an unresolved endpoint is the validator's finding to make.
     expect(result.graph).not.toBeNull();
     const findings = validateGraph(result.graph);
-    expect(findings.map((f) => f.code)).toContain(RULES.EDGE_ENDPOINT_UNRESOLVED);
+    expect(findings.map((f) => f.code)).toContain(GRAPH_RULES.EDGE_ENDPOINT_UNRESOLVED);
   });
 
   it('produces identical nodes, edges and findings regardless of fragment order', () => {
@@ -206,10 +206,10 @@ describe('mergeGraphs', () => {
   it('reports zero fragments as a finding instead of throwing', () => {
     // Array.reduce with no initial value throws on an empty array. A CLI calls this with
     // whatever graph files an operator passed, so an empty list is user input, not a
-    // programming error, and mergeGraphs must stay total: every failure mode is a Finding.
+    // programming error, and mergeGraphs must stay total: every failure mode is a GraphDiagnostic.
     const result = mergeGraphs([]);
     expect(result.graph).toBeNull();
-    expect(result.findings.map((f) => f.code)).toEqual([RULES.MERGE_NO_FRAGMENTS]);
+    expect(result.findings.map((f) => f.code)).toEqual([GRAPH_RULES.MERGE_NO_FRAGMENTS]);
     expect(result.report).toEqual({ fragments: [], contributionsApplied: 0 });
   });
 });
@@ -222,7 +222,7 @@ describe('mergeGraphs rejections', () => {
       fragment({ producer: 'orgintel', orgId: 'org2' }),
     ]);
     expect(result.graph).toBeNull();
-    expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_ORG_MISMATCH);
+    expect(result.findings.map((f) => f.code)).toContain(GRAPH_RULES.MERGE_ORG_MISMATCH);
     expect(result.findings.every((f) => f.fix.length > 0)).toBe(true);
   });
 
@@ -232,7 +232,7 @@ describe('mergeGraphs rejections', () => {
       fragment({ producer: 'orgintel', schemaVersion: '1.1.0' }),
     ]);
     expect(result.graph).toBeNull();
-    expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_SCHEMA_VERSION_MISMATCH);
+    expect(result.findings.map((f) => f.code)).toContain(GRAPH_RULES.MERGE_SCHEMA_VERSION_MISMATCH);
   });
 
   it('refuses fragments that agree with each other on an unsupported schema version', () => {
@@ -244,7 +244,7 @@ describe('mergeGraphs rejections', () => {
       fragment({ producer: 'orgintel', schemaVersion: '1.1.0' }),
     ]);
     expect(result.graph).toBeNull();
-    const finding = result.findings.find((f) => f.code === RULES.MERGE_SCHEMA_VERSION_MISMATCH);
+    const finding = result.findings.find((f) => f.code === GRAPH_RULES.MERGE_SCHEMA_VERSION_MISMATCH);
     expect(finding).toBeDefined();
     expect(finding!.message).toContain('1.1.0');
     expect(finding!.fix.length).toBeGreaterThan(0);
@@ -256,7 +256,7 @@ describe('mergeGraphs rejections', () => {
       fragment({ producer: 'orgintel', nodes: [{ ...account }] }),
     ]);
     expect(result.graph).toBeNull();
-    const collision = result.findings.find((f) => f.code === RULES.MERGE_ID_COLLISION);
+    const collision = result.findings.find((f) => f.code === GRAPH_RULES.MERGE_ID_COLLISION);
     expect(collision!.id).toBe('obj.Account');
     // Operators pass files 1, 2, 3 -- messages must not read "fragment 0".
     expect(collision!.message).toContain('fragment 1 and fragment 2');
@@ -267,7 +267,7 @@ describe('mergeGraphs rejections', () => {
       fragment({ producer: 'orgviz', nodes: [account, { ...account }] }),
     ]);
     expect(result.graph).toBeNull();
-    const collision = result.findings.find((f) => f.code === RULES.MERGE_ID_COLLISION);
+    const collision = result.findings.find((f) => f.code === GRAPH_RULES.MERGE_ID_COLLISION);
     expect(collision!.message).toContain('claimed twice within fragment 1');
     expect(collision!.message).not.toMatch(/fragment 1 and fragment 1/);
   });
@@ -277,7 +277,7 @@ describe('mergeGraphs rejections', () => {
     // extraction started reading Flow XML, which is a design change, not a merge input.
     const result = mergeGraphs([fragment({ producer: 'orgviz', nodes: [orderRouter] })]);
     expect(result.graph).toBeNull();
-    const finding = result.findings.find((f) => f.code === RULES.MERGE_KIND_NOT_OWNED);
+    const finding = result.findings.find((f) => f.code === GRAPH_RULES.MERGE_KIND_NOT_OWNED);
     expect(finding!.id).toBe('flow.Order_Router');
     expect(finding!.message).toContain('orgintel');
   });
@@ -286,7 +286,7 @@ describe('mergeGraphs rejections', () => {
     // An unnamed producer cannot violate an ownership rule. It is a fragment written by hand or
     // by an older build, and the id-collision rule still covers the harm ownership prevents.
     const result = mergeGraphs([fragment({ nodes: [orderRouter] })]);
-    expect(result.findings.map((f) => f.code)).not.toContain(RULES.MERGE_KIND_NOT_OWNED);
+    expect(result.findings.map((f) => f.code)).not.toContain(GRAPH_RULES.MERGE_KIND_NOT_OWNED);
   });
 });
 
@@ -330,7 +330,7 @@ describe('attribute contributions', () => {
         contributions: [{ nodeId: 'obj.Missing', attrs: { recordCount90d: 1 } }],
       }),
     ]);
-    const finding = result.findings.find((f) => f.code === RULES.MERGE_CONTRIBUTION_UNRESOLVED);
+    const finding = result.findings.find((f) => f.code === GRAPH_RULES.MERGE_CONTRIBUTION_UNRESOLVED);
     expect(finding!.id).toBe('obj.Missing');
   });
 
@@ -344,7 +344,7 @@ describe('attribute contributions', () => {
         contributions: [{ nodeId: 'obj.Missing', attrs: { recordCount90d: 1 } }],
       }),
     ]);
-    expect(result.findings.map((f) => f.code)).toEqual([RULES.MERGE_CONTRIBUTION_UNRESOLVED]);
+    expect(result.findings.map((f) => f.code)).toEqual([GRAPH_RULES.MERGE_CONTRIBUTION_UNRESOLVED]);
     expect(result.graph).not.toBeNull();
   });
 
@@ -353,7 +353,7 @@ describe('attribute contributions', () => {
       fragment({ producer: 'orgviz', orgId: 'org1' }),
       fragment({ producer: 'orgintel', orgId: 'org2' }),
     ]);
-    expect(result.findings.map((f) => f.code)).toContain(RULES.MERGE_ORG_MISMATCH);
+    expect(result.findings.map((f) => f.code)).toContain(GRAPH_RULES.MERGE_ORG_MISMATCH);
     expect(result.graph).toBeNull();
   });
 
@@ -367,7 +367,7 @@ describe('attribute contributions', () => {
     ]);
     expect(result.graph).not.toBeNull();
     const finding = result.findings.find(
-      (f) => f.code === RULES.MERGE_CONTRIBUTION_UNATTRIBUTED,
+      (f) => f.code === GRAPH_RULES.MERGE_CONTRIBUTION_UNATTRIBUTED,
     );
     expect(finding).toBeDefined();
     expect(finding!.id).toBe('obj.Account');

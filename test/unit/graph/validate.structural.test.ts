@@ -1,10 +1,10 @@
 import { describe, it, expect } from '@jest/globals';
 import { validateGraph } from '../../../src/graph/validate.js';
-import { RULES } from '../../../src/graph/rules.js';
-import { SUPPORTED_SCHEMA_VERSION } from '../../../src/graph/types.js';
+import { GRAPH_RULES } from '../../../src/graph/rules.js';
+import { SUPPORTED_GRAPH_SCHEMA_VERSION } from '../../../src/graph/types.js';
 
 const minimal = {
-  schemaVersion: SUPPORTED_SCHEMA_VERSION,
+  schemaVersion: SUPPORTED_GRAPH_SCHEMA_VERSION,
   capturedAt: '2026-09-07T00:00:00Z',
   orgId: '00Dxx0000000000',
   nodes: [
@@ -30,7 +30,7 @@ describe('validateGraph — structural', () => {
 
   it('rejects an unsupported schemaVersion loudly, not partially', () => {
     const findings = validateGraph({ ...minimal, schemaVersion: '2.0.0' });
-    expect(findings.map((f) => f.code)).toContain(RULES.SCHEMA_VERSION_UNSUPPORTED);
+    expect(findings.map((f) => f.code)).toContain(GRAPH_RULES.SCHEMA_VERSION_UNSUPPORTED);
     expect(findings[0].fix).toBeTruthy();
   });
 
@@ -39,7 +39,7 @@ describe('validateGraph — structural', () => {
       ...minimal,
       edges: [{ from: 'org.root', to: 'org.root', kind: 'contains', attrs: {} }],
     });
-    const finding = findings.find((f) => f.code === RULES.EDGE_MISSING_PROVENANCE);
+    const finding = findings.find((f) => f.code === GRAPH_RULES.EDGE_MISSING_PROVENANCE);
     expect(finding).toBeDefined();
     expect(finding!.id).toBe('org.root->org.root');
   });
@@ -78,11 +78,11 @@ describe('fragment envelope', () => {
 
   it('rejects a producer that is not a known tool', () => {
     const findings = validateGraph({ ...base, producer: 'somebody-else' });
-    expect(findings.map((f) => f.code)).toContain(RULES.SCHEMA_SHAPE);
+    expect(findings.map((f) => f.code)).toContain(GRAPH_RULES.SCHEMA_SHAPE);
   });
 
   it('rejects a contribution with no node id', () => {
     const findings = validateGraph({ ...base, contributions: [{ attrs: { x: 1 } }] });
-    expect(findings.map((f) => f.code)).toContain(RULES.SCHEMA_SHAPE);
+    expect(findings.map((f) => f.code)).toContain(GRAPH_RULES.SCHEMA_SHAPE);
   });
 });

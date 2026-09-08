@@ -4,15 +4,15 @@
 // `level` is stored on every node in the document as well, for legibility — a reader should not
 // need this table to filter a graph by hand. That denormalisation is for convenience only:
 // the validator asserts the stored value against this table, so this file is the authority.
-import type { Layer, Level, Producer } from './types.js';
+import type { GraphLayer, GraphLevel, GraphProducer } from './types.js';
 
-export interface KindEntry {
-  layer: Layer;
-  level: Level;
-  owner: Producer;
+export interface GraphKindEntry {
+  layer: GraphLayer;
+  level: GraphLevel;
+  owner: GraphProducer;
 }
 
-export const KIND_TABLE = {
+export const GRAPH_KIND_TABLE = {
   // Level 0 — the coarsest rollup. Deliberately tiny, so "about a dozen nodes" survives an
   // org with forty connected apps. Spec section 2.2.
   org: { layer: 'landscape', level: 0, owner: 'orgviz' },
@@ -40,22 +40,22 @@ export const KIND_TABLE = {
   field: { layer: 'data', level: 3, owner: 'orgviz' },
   grant: { layer: 'access', level: 3, owner: 'orgviz' },
   flowElement: { layer: 'process', level: 3, owner: 'orgintel' },
-} as const satisfies Record<string, KindEntry>;
+} as const satisfies Record<string, GraphKindEntry>;
 
-export type NodeKind = keyof typeof KIND_TABLE;
+export type GraphNodeKind = keyof typeof GRAPH_KIND_TABLE;
 
-export function isKnownKind(kind: string): kind is NodeKind {
-  return Object.prototype.hasOwnProperty.call(KIND_TABLE, kind);
+export function isKnownGraphKind(kind: string): kind is GraphNodeKind {
+  return Object.prototype.hasOwnProperty.call(GRAPH_KIND_TABLE, kind);
 }
 
-export function levelOf(kind: NodeKind): Level {
-  return KIND_TABLE[kind].level;
+export function levelOfKind(kind: GraphNodeKind): GraphLevel {
+  return GRAPH_KIND_TABLE[kind].level;
 }
 
-export function layerOf(kind: NodeKind): Layer {
-  return KIND_TABLE[kind].layer;
+export function layerOfKind(kind: GraphNodeKind): GraphLayer {
+  return GRAPH_KIND_TABLE[kind].layer;
 }
 
-export function ownerOf(kind: NodeKind): Producer {
-  return KIND_TABLE[kind].owner;
+export function ownerOfKind(kind: GraphNodeKind): GraphProducer {
+  return GRAPH_KIND_TABLE[kind].owner;
 }
