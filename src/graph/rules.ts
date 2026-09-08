@@ -2,7 +2,7 @@
 // Stable rule codes. A code is an API: renaming one is a breaking change for anything that
 // keys off validator output, so treat this table the way you would treat an error enum.
 
-export const RULES = {
+export const GRAPH_RULES = {
   NOT_AN_OBJECT: 'GRAPH_NOT_AN_OBJECT',
   SCHEMA_VERSION_UNSUPPORTED: 'GRAPH_SCHEMA_VERSION_UNSUPPORTED',
   SCHEMA_SHAPE: 'GRAPH_SCHEMA_SHAPE',
@@ -29,10 +29,10 @@ export const RULES = {
   MERGE_CONTRIBUTION_UNATTRIBUTED: 'GRAPH_MERGE_CONTRIBUTION_UNATTRIBUTED',
 } as const;
 
-export type RuleCode = (typeof RULES)[keyof typeof RULES];
+export type GraphRuleCode = (typeof GRAPH_RULES)[keyof typeof GRAPH_RULES];
 
-export interface Finding {
-  code: RuleCode;
+export interface GraphDiagnostic {
+  code: GraphRuleCode;
   /** The offending node id, or `from->to` for an edge. `document` for whole-file findings. */
   id: string;
   message: string;

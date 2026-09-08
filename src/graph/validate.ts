@@ -3,9 +3,9 @@
 // partially. Spec section 5.
 import { Ajv, type ErrorObject } from 'ajv';
 import { GRAPH_SCHEMA } from './schema.js';
-import { RULES, type Finding } from './rules.js';
-import { SUPPORTED_SCHEMA_VERSION, type CanonicalGraph, type GraphNode } from './types.js';
-import { isKnownKind, levelOf, layerOf } from './kinds.js';
+import { GRAPH_RULES, type GraphDiagnostic } from './rules.js';
+import { SUPPORTED_GRAPH_SCHEMA_VERSION, type CanonicalGraph, type GraphNode } from './types.js';
+import { isKnownGraphKind, levelOfKind, layerOfKind } from './kinds.js';
 import { codepointCompare } from '../lib/order.js';
 
 // ajv exports the class as a named export alongside the default, and the named one is what
@@ -14,15 +14,15 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 const validateShape = ajv.compile(GRAPH_SCHEMA);
 
 /** Edge identity used in findings, so a reader can locate the offending edge in the file. */
-export function edgeId(e: { from: string; to: string }): string {
+export function graphEdgeId(e: { from: string; to: string }): string {
   return `${e.from}->${e.to}`;
 }
 
-export function validateGraph(doc: unknown): Finding[] {
+export function validateGraph(doc: unknown): GraphDiagnostic[] {
   if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
     return [
       {
-        code: RULES.NOT_AN_OBJECT,
+        code: GRAPH_RULES.NOT_AN_OBJECT,
         id: 'document',
         message: 'The graph document is not a JSON object.',
         fix: 'Pass the path to a canonical graph document written by this tool.',
@@ -32,17 +32,17 @@ export function validateGraph(doc: unknown): Finding[] {
 
   const candidate = doc as Partial<CanonicalGraph>;
 
-  if (candidate.schemaVersion !== SUPPORTED_SCHEMA_VERSION) {
+  if (candidate.schemaVersion !== SUPPORTED_GRAPH_SCHEMA_VERSION) {
     // Loud, not partial: a document from another schema version is not partially loadable,
     // because the fields that changed are exactly the ones a reader would misread.
     return [
       {
-        code: RULES.SCHEMA_VERSION_UNSUPPORTED,
+        code: GRAPH_RULES.SCHEMA_VERSION_UNSUPPORTED,
         id: 'document',
         message:
           `schemaVersion is ${String(candidate.schemaVersion)}; this build supports ` +
-          `${SUPPORTED_SCHEMA_VERSION}.`,
-        fix: `Re-extract the graph with this version of the tool, or run the migration to ${SUPPORTED_SCHEMA_VERSION}.`,
+          `${SUPPORTED_GRAPH_SCHEMA_VERSION}.`,
+        fix: `Re-extract the graph with this version of the tool, or run the migration to ${SUPPORTED_GRAPH_SCHEMA_VERSION}.`,
       },
     ];
   }
@@ -52,18 +52,18 @@ export function validateGraph(doc: unknown): Finding[] {
     // error, because it is the one shape failure that has a specific remedy and because
     // consumers key off the code.
     const g = doc as { edges?: Array<{ from?: string; to?: string; provenance?: unknown }> };
-    const provenanceFindings: Finding[] = (g.edges ?? [])
+    const provenanceFindings: GraphDiagnostic[] = (g.edges ?? [])
       .filter((e) => e !== null && typeof e === 'object' && e.provenance === undefined)
       .map((e) => ({
-        code: RULES.EDGE_MISSING_PROVENANCE,
-        id: edgeId({ from: String(e.from), to: String(e.to) }),
+        code: GRAPH_RULES.EDGE_MISSING_PROVENANCE,
+        id: graphEdgeId({ from: String(e.from), to: String(e.to) }),
         message: 'Edge carries no provenance.',
         fix: "Add provenance with source 'metadata', 'runtime' or 'derived'.",
       }));
     if (provenanceFindings.length > 0) return provenanceFindings;
 
     return (validateShape.errors ?? []).map((e: ErrorObject) => ({
-      code: RULES.SCHEMA_SHAPE,
+      code: GRAPH_RULES.SCHEMA_SHAPE,
       id: e.instancePath || 'document',
       message: `${e.instancePath || 'document'} ${e.message ?? 'failed schema validation'}.`,
       fix: 'Correct the field named in the path so it matches the documented shape.',
@@ -82,15 +82,15 @@ export function validateGraph(doc: unknown): Finding[] {
  * short-circuited: a reader fixing a document wants the whole list, not one error per run.
  * Sorted by id then code so two runs over the same document report identically.
  */
-function semanticFindings(graph: CanonicalGraph): Finding[] {
-  const findings: Finding[] = [];
+function semanticFindings(graph: CanonicalGraph): GraphDiagnostic[] {
+  const findings: GraphDiagnostic[] = [];
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
 
   const seen = new Set<string>();
   for (const n of graph.nodes) {
     if (seen.has(n.id)) {
       findings.push({
-        code: RULES.ID_DUPLICATE, id: n.id,
+        code: GRAPH_RULES.ID_DUPLICATE, id: n.id,
         message: `Duplicate node id ${n.id}.`,
         fix: 'Node ids are content-derived and unique. Two nodes derived the same id — namespace them by kind.',
       });
@@ -99,38 +99,38 @@ function semanticFindings(graph: CanonicalGraph): Finding[] {
 
     if (!n.id.includes('.')) {
       findings.push({
-        code: RULES.ID_NOT_NAMESPACED, id: n.id,
+        code: GRAPH_RULES.ID_NOT_NAMESPACED, id: n.id,
         message: `Node id ${n.id} is not namespaced by kind.`,
         fix: 'Prefix the id with its kind namespace, for example obj.Account or permset.Sales_Ops.',
       });
     }
 
-    if (!isKnownKind(n.kind)) {
+    if (!isKnownGraphKind(n.kind)) {
       findings.push({
-        code: RULES.UNKNOWN_KIND, id: n.id,
+        code: GRAPH_RULES.UNKNOWN_KIND, id: n.id,
         message: `Unknown kind ${n.kind}.`,
-        fix: 'Add the kind to KIND_TABLE in src/graph/kinds.ts with its layer and level, or correct the node.',
+        fix: 'Add the kind to GRAPH_KIND_TABLE in src/graph/kinds.ts with its layer and level, or correct the node.',
       });
     } else {
-      if (n.level !== levelOf(n.kind)) {
+      if (n.level !== levelOfKind(n.kind)) {
         findings.push({
-          code: RULES.LEVEL_KIND_MISMATCH, id: n.id,
-          message: `Node ${n.id} stores level ${n.level}; kind ${n.kind} is level ${levelOf(n.kind)}.`,
-          fix: `Set level to ${levelOf(n.kind)}. Level is a pure function of kind; the stored value is a convenience copy.`,
+          code: GRAPH_RULES.LEVEL_KIND_MISMATCH, id: n.id,
+          message: `Node ${n.id} stores level ${n.level}; kind ${n.kind} is level ${levelOfKind(n.kind)}.`,
+          fix: `Set level to ${levelOfKind(n.kind)}. Level is a pure function of kind; the stored value is a convenience copy.`,
         });
       }
-      if (n.layer !== layerOf(n.kind)) {
+      if (n.layer !== layerOfKind(n.kind)) {
         findings.push({
-          code: RULES.LAYER_KIND_MISMATCH, id: n.id,
-          message: `Node ${n.id} stores layer ${n.layer}; kind ${n.kind} is layer ${layerOf(n.kind)}.`,
-          fix: `Set layer to ${layerOf(n.kind)}.`,
+          code: GRAPH_RULES.LAYER_KIND_MISMATCH, id: n.id,
+          message: `Node ${n.id} stores layer ${n.layer}; kind ${n.kind} is layer ${layerOfKind(n.kind)}.`,
+          fix: `Set layer to ${layerOfKind(n.kind)}.`,
         });
       }
     }
 
     if (n.level === 0 && n.parent !== null) {
       findings.push({
-        code: RULES.ROOT_HAS_PARENT, id: n.id,
+        code: GRAPH_RULES.ROOT_HAS_PARENT, id: n.id,
         message: `Level 0 node ${n.id} carries a parent.`,
         fix: 'Set parent to null. Level 0 is the root of the containment tree.',
       });
@@ -142,13 +142,13 @@ function semanticFindings(graph: CanonicalGraph): Finding[] {
       const parent = byId.get(n.parent);
       if (!parent) {
         findings.push({
-          code: RULES.PARENT_UNRESOLVED, id: n.id,
+          code: GRAPH_RULES.PARENT_UNRESOLVED, id: n.id,
           message: `Parent ${n.parent} of ${n.id} is not in the document.`,
           fix: 'Add the parent node, or set parent to null to report this node as unattributed.',
         });
       } else if (parent.level >= n.level) {
         findings.push({
-          code: RULES.LEVEL_PARENT_ORDER, id: n.id,
+          code: GRAPH_RULES.LEVEL_PARENT_ORDER, id: n.id,
           message: `Parent ${parent.id} is level ${parent.level}; child ${n.id} is level ${n.level}.`,
           fix: 'A parent must sit at a strictly lower level than its child.',
         });
@@ -159,7 +159,7 @@ function semanticFindings(graph: CanonicalGraph): Finding[] {
   for (const n of graph.nodes) {
     if (inCycle(n.id, byId)) {
       findings.push({
-        code: RULES.PARENT_CYCLE, id: n.id,
+        code: GRAPH_RULES.PARENT_CYCLE, id: n.id,
         message: `Node ${n.id} is part of a parent cycle.`,
         fix: 'Break the cycle: containment must be a tree rooted at a level 0 node.',
       });
@@ -167,10 +167,10 @@ function semanticFindings(graph: CanonicalGraph): Finding[] {
   }
 
   for (const e of graph.edges) {
-    const id = edgeId(e);
+    const id = graphEdgeId(e);
     if (e.provenance.source === 'derived' && !e.provenance.rule) {
       findings.push({
-        code: RULES.DERIVED_MISSING_RULE, id,
+        code: GRAPH_RULES.DERIVED_MISSING_RULE, id,
         message: 'Derived edge does not name the rule that produced it.',
         fix: 'Set provenance.rule to the identifier of the aggregation rule.',
       });
@@ -178,7 +178,7 @@ function semanticFindings(graph: CanonicalGraph): Finding[] {
     for (const endpoint of [e.from, e.to]) {
       if (!byId.has(endpoint)) {
         findings.push({
-          code: RULES.EDGE_ENDPOINT_UNRESOLVED, id,
+          code: GRAPH_RULES.EDGE_ENDPOINT_UNRESOLVED, id,
           message: `Edge endpoint ${endpoint} is not in the document.`,
           fix: 'Add the missing node, or remove the edge.',
         });

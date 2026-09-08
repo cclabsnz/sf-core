@@ -2,23 +2,23 @@
 // Fragments in, one canonical graph out. Each producer writes the kinds it owns and neither has
 // to run first, so this is where the two halves of an org's picture actually meet.
 // See sf-orgviz/docs/CONVERGENCE_SPEC.md section 3.
-import type { CanonicalGraph, Coverage, Producer } from './types.js';
-import { SUPPORTED_SCHEMA_VERSION } from './types.js';
-import { RULES, type Finding } from './rules.js';
-import { isKnownKind, ownerOf } from './kinds.js';
+import type { CanonicalGraph, GraphCoverage, GraphProducer } from './types.js';
+import { SUPPORTED_GRAPH_SCHEMA_VERSION } from './types.js';
+import { GRAPH_RULES, type GraphDiagnostic } from './rules.js';
+import { isKnownGraphKind, ownerOfKind } from './kinds.js';
 import { codepointCompare } from '../lib/order.js';
 
-export interface FragmentCapture {
-  producer: Producer | null;
+export interface GraphFragmentCapture {
+  producer: GraphProducer | null;
   capturedAt: string;
 }
 
-export interface MergeReport {
-  fragments: FragmentCapture[];
+export interface GraphMergeReport {
+  fragments: GraphFragmentCapture[];
   contributionsApplied: number;
 }
 
-export interface MergeResult {
+export interface GraphMergeResult {
   /**
    * Null if and only if one of the four rejections fired: org mismatch, schema version mismatch
    * (including a merged document that would carry an unsupported version), id collision, or kind
@@ -27,11 +27,11 @@ export interface MergeResult {
    * fatal -- so it comes back as a finding alongside a non-null graph, never in place of one.
    */
   graph: CanonicalGraph | null;
-  findings: Finding[];
-  report: MergeReport;
+  findings: GraphDiagnostic[];
+  report: GraphMergeReport;
 }
 
-function mergeCoverage(fragments: CanonicalGraph[]): Coverage {
+function mergeCoverage(fragments: CanonicalGraph[]): GraphCoverage {
   return {
     notes: fragments.flatMap((f) => f.coverage.notes),
     unavailable: fragments.flatMap((f) => f.coverage.unavailable),
@@ -39,19 +39,19 @@ function mergeCoverage(fragments: CanonicalGraph[]): Coverage {
 }
 
 /** Sorted the same way regardless of the order the caller passed fragments in. Spec section 12. */
-function sortFindings(findings: Finding[]): Finding[] {
+function sortFindings(findings: GraphDiagnostic[]): GraphDiagnostic[] {
   return findings.sort(
     (a, b) => codepointCompare(a.code, b.code) || codepointCompare(a.id, b.id),
   );
 }
 
-export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
+export function mergeGraphs(fragments: CanonicalGraph[]): GraphMergeResult {
   if (fragments.length === 0) {
     return {
       graph: null,
       findings: [
         {
-          code: RULES.MERGE_NO_FRAGMENTS,
+          code: GRAPH_RULES.MERGE_NO_FRAGMENTS,
           id: 'document',
           message: 'No fragments were supplied to merge.',
           fix: 'Pass at least one canonical graph fragment to merge.',
@@ -61,17 +61,17 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
     };
   }
 
-  const report: MergeReport = {
+  const report: GraphMergeReport = {
     fragments: fragments.map((f) => ({ producer: f.producer ?? null, capturedAt: f.capturedAt })),
     contributionsApplied: 0,
   };
 
-  const findings: Finding[] = [];
+  const findings: GraphDiagnostic[] = [];
 
   const orgIds = [...new Set(fragments.map((f) => f.orgId))];
   if (orgIds.length > 1) {
     findings.push({
-      code: RULES.MERGE_ORG_MISMATCH,
+      code: GRAPH_RULES.MERGE_ORG_MISMATCH,
       id: 'document',
       message: `Fragments describe different orgs: ${orgIds.join(', ')}.`,
       fix: 'Merge fragments captured from one org. Re-run whichever producer targeted the other.',
@@ -81,21 +81,21 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
   const versions = [...new Set(fragments.map((f) => f.schemaVersion))];
   if (versions.length > 1) {
     findings.push({
-      code: RULES.MERGE_SCHEMA_VERSION_MISMATCH,
+      code: GRAPH_RULES.MERGE_SCHEMA_VERSION_MISMATCH,
       id: 'document',
       message: `Fragments are at different schema versions: ${versions.join(', ')}.`,
-      fix: `Re-produce every fragment with a build that writes ${SUPPORTED_SCHEMA_VERSION}.`,
+      fix: `Re-produce every fragment with a build that writes ${SUPPORTED_GRAPH_SCHEMA_VERSION}.`,
     });
-  } else if (versions[0] !== SUPPORTED_SCHEMA_VERSION) {
+  } else if (versions[0] !== SUPPORTED_GRAPH_SCHEMA_VERSION) {
     // Every fragment agrees with every other, so the mismatch rule above never fires -- but they
     // can all agree on a version this build no longer supports. Two fragments from a pre-bump
     // build are the day-one case: they merge clean and the operator would otherwise only learn
     // about it from a finding naming the merged OUTPUT, not the stale input that caused it.
     findings.push({
-      code: RULES.MERGE_SCHEMA_VERSION_MISMATCH,
+      code: GRAPH_RULES.MERGE_SCHEMA_VERSION_MISMATCH,
       id: 'document',
       message: `Fragments agree on schema version ${versions[0]}, which this build does not support.`,
-      fix: `Re-produce every fragment with a build that writes ${SUPPORTED_SCHEMA_VERSION}.`,
+      fix: `Re-produce every fragment with a build that writes ${SUPPORTED_GRAPH_SCHEMA_VERSION}.`,
     });
   }
 
@@ -111,10 +111,10 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
             : `Node ${node.id} is claimed by fragment ${first + 1} and fragment ${index + 1}. ` +
               'One node is one fact; two fragments asserting it is two facts wearing one id.';
         findings.push({
-          code: RULES.MERGE_ID_COLLISION,
+          code: GRAPH_RULES.MERGE_ID_COLLISION,
           id: node.id,
           message,
-          fix: 'Give one producer the kind, per KIND_TABLE, and stop the other emitting it.',
+          fix: 'Give one producer the kind, per GRAPH_KIND_TABLE, and stop the other emitting it.',
         });
       } else {
         seen.set(node.id, index);
@@ -127,14 +127,14 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
     // is still merged, and the id-collision rule above covers the harm ownership prevents.
     if (!f.producer) continue;
     for (const node of f.nodes) {
-      if (!isKnownKind(node.kind)) continue;
-      const owner = ownerOf(node.kind);
+      if (!isKnownGraphKind(node.kind)) continue;
+      const owner = ownerOfKind(node.kind);
       if (owner === f.producer) continue;
       findings.push({
-        code: RULES.MERGE_KIND_NOT_OWNED,
+        code: GRAPH_RULES.MERGE_KIND_NOT_OWNED,
         id: node.id,
         message: `Fragment from ${f.producer} emits kind ${node.kind}, which ${owner} owns.`,
-        fix: `Emit ${node.kind} from ${owner}, or move its ownership in KIND_TABLE if the design changed.`,
+        fix: `Emit ${node.kind} from ${owner}, or move its ownership in GRAPH_KIND_TABLE if the design changed.`,
       });
     }
   }
@@ -154,7 +154,7 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
         // last-writer-wins -- exactly what namespacing exists to prevent. Skipped, not merged
         // under a shared 'unknown' bucket.
         findings.push({
-          code: RULES.MERGE_CONTRIBUTION_UNATTRIBUTED,
+          code: GRAPH_RULES.MERGE_CONTRIBUTION_UNATTRIBUTED,
           id: c.nodeId,
           message:
             `A fragment with no producer contributes attributes to ${c.nodeId}. An unattributed ` +
@@ -166,7 +166,7 @@ export function mergeGraphs(fragments: CanonicalGraph[]): MergeResult {
       const target = byId.get(c.nodeId);
       if (!target) {
         findings.push({
-          code: RULES.MERGE_CONTRIBUTION_UNRESOLVED,
+          code: GRAPH_RULES.MERGE_CONTRIBUTION_UNRESOLVED,
           id: c.nodeId,
           message: `${f.producer} contributes attributes to ${c.nodeId}, which no fragment provides.`,
           fix: 'Include the fragment that owns that node, or stop contributing to it.',

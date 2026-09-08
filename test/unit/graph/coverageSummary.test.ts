@@ -1,9 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
-import { summariseCoverage } from '../../../src/graph/coverage.js';
+import { summariseGraphCoverage } from '../../../src/graph/coverage.js';
 
-describe('summariseCoverage', () => {
+describe('summariseGraphCoverage', () => {
   it('reports notes and unavailable scopes, naming what could not be read', () => {
-    const lines = summariseCoverage({
+    const lines = summariseGraphCoverage({
       notes: ['connected apps not readable'],
       unavailable: [{ scope: 'landscape.connectedApps', reason: 'failed', detail: 'INSUFFICIENT_ACCESS' }],
     });
@@ -13,6 +13,6 @@ describe('summariseCoverage', () => {
   });
 
   it('returns no lines for a clean document', () => {
-    expect(summariseCoverage({ notes: [], unavailable: [] })).toEqual([]);
+    expect(summariseGraphCoverage({ notes: [], unavailable: [] })).toEqual([]);
   });
 });
