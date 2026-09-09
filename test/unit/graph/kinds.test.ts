@@ -62,4 +62,22 @@ describe('kind ownership', () => {
     expect(ownerOfKind('connectedApp')).toBe('orgviz');
     expect(ownerOfKind('namedCredential')).toBe('orgviz');
   });
+
+  it('gives sf-orgintel the anatomy kinds it collects', () => {
+    // A site is a channel an org publishes; a product is mined from component name prefixes;
+    // an ssoConfig is an identity provider. None is a thing sf-orgviz extracts.
+    expect(ownerOfKind('site')).toBe('orgintel');
+    expect(ownerOfKind('product')).toBe('orgintel');
+    expect(ownerOfKind('ssoConfig')).toBe('orgintel');
+  });
+
+  it('places the anatomy kinds on the landscape layer', () => {
+    // They describe what the org presents to the world, which is what `landscape` means. That
+    // they sit on sf-orgviz's layer while sf-orgintel owns them is the point of per-kind
+    // ownership -- see CONVERGENCE_SPEC section 1.1.
+    for (const kind of ['site', 'product', 'ssoConfig'] as const) {
+      expect(layerOfKind(kind)).toBe('landscape');
+      expect(levelOfKind(kind)).toBe(2);
+    }
+  });
 });
