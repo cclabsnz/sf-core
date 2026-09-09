@@ -12,6 +12,21 @@ CycloneDX SBOM for the build.
 
 Nothing yet.
 
+## [0.6.0] — 2026-09-10
+
+### Added
+
+- **Three node kinds for the things `intel anatomy` collects**: `site` (a channel an org
+  publishes), `product` (mined from component name prefixes) and `ssoConfig` (an identity
+  provider). All three are owned by `orgintel` and sit on the `landscape` layer.
+
+  That combination is the point. `landscape` is otherwise `sf-orgviz`'s territory, and a layer
+  is not what ownership is keyed on — a kind is. Deciding it that way in 0.5.0 is what lets a
+  second tool contribute to a layer the first one dominates without either emitting the other's
+  entities, and this is the first release where that flexibility is actually spent. A merge
+  rejects a fragment emitting a kind it does not own, and `layerOfKind`/`levelOfKind` read from
+  `GRAPH_KIND_TABLE`, so nothing could emit these until they were declared here.
+
 ## [0.5.1] — 2026-09-09
 
 ### Fixed
