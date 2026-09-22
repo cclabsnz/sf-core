@@ -1,0 +1,4 @@
+# Synthetic fixture values that follow neither the 'xx' nor the zero-run convention, and
+# real Salesforce VENDOR ids, which are public reference data. One exact value per line.
+# Matched against extracted values and anchored whole, so a line here cannot clear anything
+# but itself. Anything absent fails the guard even if it looks synthetic - that is the point.
