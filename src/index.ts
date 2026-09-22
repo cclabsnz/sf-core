@@ -101,3 +101,6 @@ export * from './schemas/index.js';
 // sf-orgintel can both produce fragments of one schema without either depending on the other.
 // See sf-orgviz/docs/CONVERGENCE_SPEC.md section 1.2.
 export * from './graph/index.js';
+
+// --- Activity engine ---
+export * from './activity/index.js';

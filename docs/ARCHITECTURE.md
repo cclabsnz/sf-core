@@ -5,24 +5,36 @@ changing anything that crosses a module boundary.
 
 ## What it is
 
-A library, not a CLI plugin. It provides the pieces both CloudCounsel Salesforce plugins
-need, so that neither implements them twice:
+A library, not a CLI plugin. It carries the common heavy lifting, so that no plugin implements
+it twice and each one stays narrow:
 
 ```
-                 sf-audit  (security audit)      sf-orgintel  (org intelligence)
-                        \                              /
-                         \                            /
-                          ============================
-                                  @cclabsnz/sf-core
-                          ============================
-                                        |
-                            @salesforce/core Connection
-                                        |
-                              a Salesforce org  (read-only)
+     sf-audit        sf-orgintel        sf-evidence        sf-trace
+    (security)       (org intel)         (archival)        (activity)
+          \               |                   |                /
+           ==================================================
+                           @cclabsnz/sf-core
+           ==================================================
+                                     |
+                         @salesforce/core Connection
+                                     |
+                           a Salesforce org  (read-only)
 ```
 
-Both plugins consume this package **from npm**, not by path. A change here must be published
-before either can use it, and a regression reaches both at once.
+Every plugin consumes this package **from npm**, not by path. A change here must be published
+before any of them can use it, and a regression reaches all of them at once.
+
+### What belongs here, and what does not
+
+| Question | Answer | Home |
+|---|---|---|
+| Is it reusable across plugins, and free of any product's opinion? | yes | here |
+| Does it encode what one product thinks the data *means* — a severity, a finding, a score, a recommendation? | yes | that plugin |
+
+This supersedes the narrower rule in `2026-08-03-hourly-rte-capture-design.md` §1, which placed
+all correlation and analysis outside this package. That rule asked "is it capture?", which put
+reusable, opinion-free functions on the wrong side of the line as soon as a second consumer
+wanted them. Computing *what happened* belongs here; judging *what it is worth* does not.
 
 ## The one trust boundary
 
@@ -59,6 +71,7 @@ paths, SOQL strings and generated HTML, and each of those has a rule (see the as
 | `src/context` | `AuditContext` (the clients plus org identity, passed to everything), `AuditCache`, `OrgInfo`, `OrgMetrics`. |
 | `src/platform` | Knowledge about how Salesforce behaves, independent of any one plugin: `apexRepository`, `flowRepository`, `salesforceId`, and `mapWithConcurrency`. |
 | `src/events` | Event log and Real-Time Event capture: `pullEventLogs`, `pullRealtimeEvents`, `eventLogQuery`, `eventLogAccess`, `EventBaselineStore`, `CaptureManifest`. The only module that writes to disk. |
+| `src/activity` | Pure analysis over captured event log rows: parse, classify as read/write/destructive/control/unknown, resolve composite requests, sessionise, segment cycles, recover motifs, flag outliers. No I/O and no org connection. |
 | `src/findings` | The shared risk vocabulary (`RiskLevel`). |
 | `src/renderers`, `src/report`, `src/assets` | The report shell: `esc`, branding tokens, and fonts embedded as data URIs. |
 | `src/schemas` | Versioned IR contracts (the coupling graph, the landscape manifest) that the plugins read and write. |
