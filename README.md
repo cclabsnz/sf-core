@@ -24,6 +24,7 @@ contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/
 | **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient`: read-only wrappers over a `@salesforce/core` `Connection` |
 | **Platform behaviour** | `FlowRepository`, `ApexRepository`, `isSalesforceId`, `describeSalesforceError`, `mapWithConcurrency` |
 | **Event capture** | `EventBaselineStore`, `RTE_CATALOG`, `pullEventLogs`, `pullRealtimeEvents`, `CaptureManifest`: bounded, resumable EventLogFile and Real-Time Event pulls |
+| **Activity engine** | Turns captured EventLogFile rows into a classified, sessionised account of one actor's API activity. Classifies each call as a read, write, destructive, control or unknown operation — `unknown` is a real answer for undecomposed `/composite` requests, not a failure to classify — resolves them into their subrequests, groups events into runs and cycles, recovers the repeating sequence, and flags outliers on median and MAD. Pure functions; no org connection. |
 | **IR contracts** | Typed interfaces plus JSON Schemas for `coupling-graph`, `landscape-manifest` and `process-graph` |
 | **Report shell** | Branding resolution and embedded webfonts for self-contained HTML reports |
 | **Test invariants** | Static guards that fail a build on org writes or network egress |

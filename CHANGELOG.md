@@ -10,7 +10,20 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **An activity engine for classifying and tracing one actor's API calls across a Salesforce
+  org.** Exported from the package root: `parseCsv` and `normalise` turn EventLogFile rows
+  (`ApiTotalUsage`, `RestApi`, `CompositeApiSubrequest`, `API`, `Login`) into a common
+  `ActivityEvent` shape; `classify` labels each one read, write, destructive, control or
+  unknown; `decomposeComposite` joins composite parents to their subrequests on `REQUEST_ID`
+  and marks a resolved parent with `decomposedInto` so it is never mistaken for a genuinely
+  unclassifiable event; `sessionise` and `segmentCycles` group events into runs and
+  caller-delimited cycles; `flagOutliers` and `median` find anomalies on median and MAD rather
+  than mean and standard deviation, so one extreme value cannot hide itself; and `discoverMotif`
+  recovers an actor's dominant repeating sequence from the tail of transitions that depart from
+  it. Pure — no filesystem, no org, no clock — and the reason: every function in `src/activity/`
+  is unit-tested with none of those, ahead of the `sf-trace` plugin that will consume it.
 
 ## [0.6.0] — 2026-09-10
 
