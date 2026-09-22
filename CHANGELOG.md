@@ -10,6 +10,10 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.7.0] — 2026-09-22
+
 ### Added
 
 - **An activity engine for classifying and tracing one actor's API calls across a Salesforce
