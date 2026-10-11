@@ -52,6 +52,13 @@ describe('kind ownership', () => {
     expect(ownerOfKind('flowElement')).toBe('orgintel');
   });
 
+  it('gives sf-orgintel the integration kind, since only its anatomy finds external destinations', () => {
+    // An external system an org calls is found where the call is made: in Apex callouts, Named
+    // Credential and Remote Site hops, OmniStudio Integration Procedures. sf-orgintel's anatomy
+    // reads those; sf-orgviz extraction never did, and never emitted an integration node.
+    expect(ownerOfKind('integration')).toBe('orgintel');
+  });
+
   it('gives sf-orgviz the kinds its extraction produces', () => {
     expect(ownerOfKind('sobject')).toBe('orgviz');
     expect(ownerOfKind('field')).toBe('orgviz');
