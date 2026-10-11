@@ -25,7 +25,10 @@ export const GRAPH_KIND_TABLE = {
   // Level 2 — concrete entities.
   connectedApp: { layer: 'landscape', level: 2, owner: 'orgviz' },
   namedCredential: { layer: 'landscape', level: 2, owner: 'orgviz' },
-  integration: { layer: 'landscape', level: 2, owner: 'orgviz' },
+  // An external system the org calls. Owned by sf-orgintel since 0.9.0: its anatomy finds them,
+  // in Apex callouts and Named Credential, Remote Site and Integration Procedure hops. sf-orgviz
+  // extraction never emitted one.
+  integration: { layer: 'landscape', level: 2, owner: 'orgintel' },
   site: { layer: 'landscape', level: 2, owner: 'orgintel' },
   product: { layer: 'landscape', level: 2, owner: 'orgintel' },
   ssoConfig: { layer: 'landscape', level: 2, owner: 'orgintel' },

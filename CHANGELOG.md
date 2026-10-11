@@ -10,7 +10,14 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **The `integration` node kind is owned by sf-orgintel, not sf-orgviz.** An external system an
+  org calls is found where the call is made: Apex callouts, and Named Credential, Remote Site and
+  Integration Procedure hops. sf-orgintel's anatomy reads those; sf-orgviz extraction never
+  emitted an `integration` node. `mergeGraphs` now refuses an sf-orgviz fragment emitting one
+  (`GRAPH_MERGE_KIND_NOT_OWNED`) and accepts an sf-orgintel fragment that does. Both producers
+  must merge on sf-core 0.9.0 or later, since ownership is checked by the merging side.
 
 ## [0.8.0] — 2026-10-11
 
