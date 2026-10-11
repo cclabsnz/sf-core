@@ -10,6 +10,10 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.8.0] — 2026-10-11
+
 ### Added
 
 - **`classifyObject(name, facts, targets)`** decides an object's role (`entity`, `companion`,
