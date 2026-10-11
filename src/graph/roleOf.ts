@@ -43,7 +43,13 @@ const CONTENT_OBJECTS: ReadonlySet<string> = new Set([
   'Attachment', 'Document', 'EmailMessage', 'EmailTemplate', 'Note',
 ]);
 
-/** Which layer an object belongs to. Unrecognised objects are business, never hidden. */
+/**
+ * Which layer an object belongs to. Unrecognised objects are business, never hidden.
+ *
+ * @deprecated Recognises objects by name and defaults everything else to business. Use
+ * `classifyObject`, which decides from platform evidence. Kept for one minor version so sf-orgviz
+ * and sf-orgintel do not disagree mid-migration.
+ */
 export function roleOf(object: string): ObjectLayer {
   if (SECURITY_OBJECTS.has(object)) return 'security';
   if (/^Logger?[A-Z_]/.test(object) || /^Log(Entry|Status|Retention)/.test(object)) return 'observability';
