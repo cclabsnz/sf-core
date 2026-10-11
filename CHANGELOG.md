@@ -10,7 +10,22 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **`classifyObject(name, facts, targets)`** decides an object's role (`entity`, `companion`,
+  `actor`, `qualifier`, `setup`, `configuration`, `event`, `external`, `reference` or
+  `unclassified`) from platform evidence: `describeGlobal`'s `associateParentEntity`, layout and
+  trigger capability, custom-setting status, the internal sharing model, the system fields'
+  targets, and whether production automation only reads it. It never recognises an object by name,
+  every decision carries its evidence, and an object whose facts were not read is `unclassified`
+  rather than defaulted. Exports `ObjectRole`, `ObjectFacts`, `PlatformTargets` and
+  `ObjectRoleDecision`. Specified in sf-orgintel `docs/OBJECT_ROLES_SPEC.md`.
+
+### Deprecated
+
+- **`roleOf`** recognises objects by name and calls everything else business. Use
+  `classifyObject`. It stays for one minor version so the two tools that call it can migrate
+  together.
 
 ## [0.7.0] — 2026-09-22
 
