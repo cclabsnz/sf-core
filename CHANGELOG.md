@@ -10,6 +10,10 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.9.0] — 2026-10-12
+
 ### Changed
 
 - **The `integration` node kind is owned by sf-orgintel, not sf-orgviz.** An external system an
