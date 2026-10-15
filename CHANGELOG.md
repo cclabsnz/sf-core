@@ -12,6 +12,24 @@ CycloneDX SBOM for the build.
 
 Nothing yet.
 
+## [0.10.0] — 2026-10-15
+
+### Added
+
+- **`secureFs`, `SECURE_DIR_MODE`, `SECURE_FILE_MODE`.** Writes that create directories 0700 and
+  files 0600, for local stores that hold org data. `ensureSecureDir` also tightens a store root
+  that already exists; `mkdir` leaves an existing directory alone, since callers pass it
+  user-chosen output folders. The event baseline store and `getRawToFile` now write through it.
+- **`SECURE_FS_RULES`**, an invariant that fails a package's build on a raw filesystem write
+  outside `secureFs`, including bare calls through a named import from `node:fs`.
+- **`STRICT_CSP_META` and `INTERACTIVE_CSP_META`**, Content-Security-Policy meta tags for rendered
+  reports. Both forbid all network egress; the interactive one allows inline script.
+
+### Changed
+
+- **`esc()` escapes single quotes** (`'` → `&#39;`) and returns `''` for `null` or `undefined`.
+  Rendered HTML containing `'` changes, so consumer snapshot tests may need updating.
+
 ## [0.9.0] — 2026-10-12
 
 ### Changed
