@@ -87,72 +87,79 @@ export function soqlRaw(raw: string): SafeSoqlFragment {
 }
 
 /**
- * Formats a bind value safely based on its type and surrounding template quotation.
+ * Escapes a value for use inside a SOQL LIKE pattern: quotes and backslashes as for any string,
+ * plus `%` and `_`, which LIKE would otherwise treat as wildcards.
  */
-function formatBindValue(val: unknown, precedingChunk: string, followingChunk: string): string {
-  if (val instanceof SafeSoqlFragment) {
-    return val.text;
-  }
+export function escapeSoqlLike(val: string): string {
+  return escapeSoqlString(val).replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
 
-  // Number: must be finite
-  if (typeof val === 'number') {
-    if (!Number.isFinite(val)) {
-      throw new SoqlBindError(`Invalid number for SOQL bind: ${val}`);
+/**
+ * A quoted LIKE pattern matching `val` literally, with wildcards only where asked for:
+ * soqlLike(name, 'contains') gives '%<name>%'.
+ */
+export function soqlLike(val: string, match: 'contains' | 'startsWith' | 'endsWith' | 'exact' = 'contains'): SafeSoqlFragment {
+  if (typeof val !== 'string') {
+    throw new SoqlBindError(`Expected string for SOQL LIKE bind, got ${typeof val}`);
+  }
+  const body = escapeSoqlLike(val);
+  const lead = match === 'contains' || match === 'endsWith' ? '%' : '';
+  const trail = match === 'contains' || match === 'startsWith' ? '%' : '';
+  return new SafeSoqlFragment(`'${lead}${body}${trail}'`);
+}
+
+/** True when `text` ends inside an open single-quoted SOQL literal (an odd count of unescaped quotes). */
+function insideStringLiteral(text: string): boolean {
+  let open = false;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\\') {
+      i++; // skip the escaped character
+    } else if (text[i] === "'") {
+      open = !open;
     }
-    return String(val);
   }
+  return open;
+}
 
-  // Boolean
-  if (typeof val === 'boolean') {
-    return val ? 'true' : 'false';
+function formatNumber(val: number): string {
+  const text = String(val);
+  if (!Number.isFinite(val) || /e/i.test(text)) {
+    // SOQL has no exponent notation; 1e21 would be sent as "1e+21" and fail.
+    throw new SoqlBindError(`Number not representable in SOQL: ${text}`);
   }
+  return text;
+}
 
-  // Date
+/**
+ * Formats one bound value. Strings are always escaped; outside a literal they are also quoted.
+ * Inside a literal the developer has supplied the quotes, so only a string is allowed there.
+ * Nothing is inferred from a string's shape: a date-like or Id-like string is still a string.
+ */
+function formatBindValue(val: unknown, inLiteral: boolean): string {
+  if (inLiteral) {
+    if (typeof val === 'string') return escapeSoqlString(val);
+    throw new SoqlBindError(
+      `Only strings can be bound inside a quoted SOQL literal; got ${val instanceof SafeSoqlFragment ? 'a SOQL fragment' : typeof val}. Remove the quotes around the placeholder.`,
+    );
+  }
+  if (val instanceof SafeSoqlFragment) return val.text;
+  if (typeof val === 'number') return formatNumber(val);
+  if (typeof val === 'boolean') return val ? 'true' : 'false';
   if (val instanceof Date) {
-    if (isNaN(val.getTime())) {
-      throw new SoqlBindError('Invalid Date for SOQL bind');
-    }
+    if (Number.isNaN(val.getTime())) throw new SoqlBindError('Invalid Date for SOQL bind');
     return val.toISOString();
   }
-
-  // Array of Salesforce IDs or primitives
+  if (typeof val === 'string') return `'${escapeSoqlString(val)}'`;
   if (Array.isArray(val)) {
-    if (val.length === 0) {
-      throw new SoqlBindError('Empty array cannot be bound to SOQL IN clause');
-    }
-    if (val.every((x) => typeof x === 'string' && isSalesforceId(x))) {
-      return `(${val.map((x) => `'${x}'`).join(', ')})`;
-    }
-    if (val.every((x) => typeof x === 'number' && Number.isFinite(x))) {
-      return `(${val.join(', ')})`;
-    }
-    if (val.every((x) => typeof x === 'string')) {
-      return `(${val.map((x) => `'${escapeSoqlString(x)}'`).join(', ')})`;
-    }
-    throw new SoqlBindError('Array bind in SOQL must contain only strings, numbers, or Salesforce IDs');
+    if (val.length === 0) throw new SoqlBindError('Empty array cannot be bound to a SOQL IN clause');
+    if (val.every((x) => typeof x === 'string')) return `(${val.map((x) => `'${escapeSoqlString(x)}'`).join(', ')})`;
+    if (val.every((x) => typeof x === 'number')) return `(${val.map(formatNumber).join(', ')})`;
+    throw new SoqlBindError('Array bind in SOQL must contain only strings or only numbers');
   }
-
-  // String value
-  if (typeof val === 'string') {
-    const isQuoted = precedingChunk.endsWith("'") && followingChunk.startsWith("'");
-
-    if (isSalesforceId(val)) {
-      return isQuoted ? val : `'${val}'`;
-    }
-
-    if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/.test(val)) {
-      return isQuoted ? val : val;
-    }
-
-    const escaped = escapeSoqlString(val);
-    return isQuoted ? escaped : `'${escaped}'`;
-  }
-
-  if (val === null || val === undefined) {
-    return 'null';
-  }
-
-  throw new SoqlBindError(`Unsupported value type for SOQL bind: ${typeof val}`);
+  if (val === null) return 'null';
+  // undefined is almost always a missing variable, and binding it as null would silently widen
+  // or narrow the query.
+  throw new SoqlBindError(`Unsupported value for SOQL bind: ${val === undefined ? 'undefined' : typeof val}`);
 }
 
 /**
@@ -162,16 +169,18 @@ function formatBindValue(val: unknown, precedingChunk: string, followingChunk: s
  * ```ts
  * const query = soql`SELECT Id, Name FROM User WHERE Id = ${userId} AND IsActive = ${true}`;
  * ```
+ *
+ * Strings are quoted and escaped; Dates become unquoted datetime literals (use soqlDate for a
+ * date from a string); arrays become IN lists. A placeholder may also sit inside quotes the
+ * template supplies, as in `LIKE '%${x}%'`; the string is then escaped but not re-quoted, and
+ * `%` and `_` in it still act as wildcards (use soqlLike to match them literally).
  */
 export function soql(strings: TemplateStringsArray, ...values: unknown[]): string {
   let result = '';
   for (let i = 0; i < strings.length; i++) {
     result += strings[i];
-    if (i < values.length) {
-      const preceding = strings[i];
-      const following = strings[i + 1] ?? '';
-      result += formatBindValue(values[i], preceding, following);
-    }
+    if (i < values.length) result += formatBindValue(values[i], insideStringLiteral(result));
   }
+  if (insideStringLiteral(result)) throw new SoqlBindError('Unterminated string literal in SOQL template');
   return result;
 }

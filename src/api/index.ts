@@ -14,6 +14,8 @@ export {
   soqlString,
   soqlRaw,
   escapeSoqlString,
+  escapeSoqlLike,
+  soqlLike,
   SafeSoqlFragment,
   SoqlBindError,
 } from './soqlBind.js';
