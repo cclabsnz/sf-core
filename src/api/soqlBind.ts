@@ -91,7 +91,8 @@ export function soqlRaw(raw: string): SafeSoqlFragment {
  * plus `%` and `_`, which LIKE would otherwise treat as wildcards.
  */
 export function escapeSoqlLike(val: string): string {
-  return escapeSoqlString(val).replace(/%/g, '\\%').replace(/_/g, '\\_');
+  // One pass over every character SOQL treats specially in a LIKE literal.
+  return val.replace(/[\\'%_]/g, (c) => `\\${c}`);
 }
 
 /**
