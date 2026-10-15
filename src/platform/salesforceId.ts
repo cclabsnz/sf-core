@@ -41,3 +41,37 @@ export function usableApexBody(body: string | null | undefined): string | null {
 export function qualifiedName(name: string, namespacePrefix: string | null | undefined): string {
   return namespacePrefix ? `${namespacePrefix}__${name}` : name;
 }
+
+/**
+ * Splits large Apex source code into sliding window chunks to prevent regex
+ * catastrophic backtracking (ReDoS) while ensuring patterns spanning chunk boundaries
+ * are never missed.
+ *
+ * Defaults: 50,000 characters per chunk with a 2,000 character overlap.
+ */
+export function chunkApexBody(body: string, chunkSize = 50_000, overlap = 2_000): string[] {
+  if (!body) return [];
+  if (body.length <= chunkSize) return [body];
+  const chunks: string[] = [];
+  const step = Math.max(1, chunkSize - overlap);
+  for (let i = 0; i < body.length; i += step) {
+    chunks.push(body.slice(i, i + chunkSize));
+    if (i + chunkSize >= body.length) break;
+  }
+  return chunks;
+}
+
+/**
+ * Tests whether a regular expression matches within any sliding-window chunk of the body.
+ * Resets regex state if global/sticky.
+ */
+export function testApexPattern(body: string, regex: RegExp, chunkSize = 50_000, overlap = 2_000): boolean {
+  if (!body) return false;
+  const chunks = chunkApexBody(body, chunkSize, overlap);
+  for (const chunk of chunks) {
+    regex.lastIndex = 0;
+    if (regex.test(chunk)) return true;
+  }
+  return false;
+}
+
