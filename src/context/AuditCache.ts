@@ -10,6 +10,8 @@ export interface HealthCheckRisk {
 export interface ApexClassBody {
   name: string;
   body: string;
+  /** The class's compiled SymbolTable when the org returned one; managed classes may have this without a body. */
+  symbolTable?: unknown;
 }
 
 // VfPageBody: Visualforce page markup, populated by VisualforceXssCheck

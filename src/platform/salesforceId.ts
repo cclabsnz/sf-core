@@ -43,17 +43,27 @@ export function qualifiedName(name: string, namespacePrefix: string | null | und
 }
 
 /**
- * Splits large Apex source code into sliding window chunks to prevent regex
- * catastrophic backtracking (ReDoS) while ensuring patterns spanning chunk boundaries
- * are never missed.
+ * Splits Apex source into overlapping windows so a pattern is never run over an unbounded body.
  *
- * Defaults: 50,000 characters per chunk with a 2,000 character overlap.
+ * This caps the cost of patterns whose backtracking grows polynomially with input length, which
+ * on a multi-megabyte generated class can stall an audit. It does NOT make a pattern with
+ * exponential backtracking safe: such a pattern can hang on a few dozen characters, and must be
+ * rewritten instead.
+ *
+ * Defaults: 50,000 characters per window, 2,000 characters of overlap.
  */
 export function chunkApexBody(body: string, chunkSize = 50_000, overlap = 2_000): string[] {
+  if (!Number.isInteger(chunkSize) || chunkSize <= 0) {
+    throw new RangeError(`chunkSize must be a positive integer, got ${chunkSize}`);
+  }
+  if (!Number.isInteger(overlap) || overlap < 0 || overlap >= chunkSize) {
+    // An overlap at or above the chunk size would step one character at a time.
+    throw new RangeError(`overlap must be an integer from 0 to chunkSize - 1, got ${overlap}`);
+  }
   if (!body) return [];
   if (body.length <= chunkSize) return [body];
   const chunks: string[] = [];
-  const step = Math.max(1, chunkSize - overlap);
+  const step = chunkSize - overlap;
   for (let i = 0; i < body.length; i += step) {
     chunks.push(body.slice(i, i + chunkSize));
     if (i + chunkSize >= body.length) break;
@@ -62,16 +72,22 @@ export function chunkApexBody(body: string, chunkSize = 50_000, overlap = 2_000)
 }
 
 /**
- * Tests whether a regular expression matches within any sliding-window chunk of the body.
- * Resets regex state if global/sticky.
+ * Whether `regex` matches anywhere in `body`, testing window by window (see chunkApexBody).
+ *
+ * Only correct for patterns whose matches are at most `overlap` characters long: a longer match
+ * that straddles a window boundary is missed. Anchors (`^`, `$`) and `\b` at a window's edge see
+ * the edge, not the neighbouring source, so prefer patterns that do not depend on them there.
+ * The regex's lastIndex is left at 0.
  */
 export function testApexPattern(body: string, regex: RegExp, chunkSize = 50_000, overlap = 2_000): boolean {
   if (!body) return false;
-  const chunks = chunkApexBody(body, chunkSize, overlap);
-  for (const chunk of chunks) {
+  try {
+    for (const chunk of chunkApexBody(body, chunkSize, overlap)) {
+      regex.lastIndex = 0;
+      if (regex.test(chunk)) return true;
+    }
+    return false;
+  } finally {
     regex.lastIndex = 0;
-    if (regex.test(chunk)) return true;
   }
-  return false;
 }
-
