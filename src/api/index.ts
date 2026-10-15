@@ -6,3 +6,15 @@ export { isApiError } from './ApiError.js';
 export { SoqlClientImpl } from './SoqlClientImpl.js';
 export { ToolingClientImpl } from './ToolingClientImpl.js';
 export { RestClientImpl } from './RestClientImpl.js';
+export {
+  soql,
+  soqlId,
+  soqlIds,
+  soqlDate,
+  soqlString,
+  soqlRaw,
+  escapeSoqlString,
+  SafeSoqlFragment,
+  SoqlBindError,
+} from './soqlBind.js';
+
