@@ -12,6 +12,24 @@ CycloneDX SBOM for the build.
 
 Nothing yet.
 
+## [0.11.0] — 2026-10-16
+
+### Added
+
+- **`soql` tagged template** and binders `soqlId`, `soqlIds`, `soqlDate`, `soqlString`, `soqlLike`,
+  `soqlRaw`, `escapeSoqlString`, `escapeSoqlLike`. Strings are always quoted and escaped; nothing
+  is inferred from a value's shape. A placeholder inside template-supplied quotes is escaped
+  without re-quoting, and only a string may go there. `undefined`, exponent-form numbers and an
+  unterminated literal are errors (`SoqlBindError`).
+- **`chunkApexBody` and `testApexPattern`**, which run a pattern window by window over large Apex
+  bodies. This caps polynomial backtracking; it does not make an exponential pattern safe.
+  Matches longer than the overlap that straddle a window boundary are missed.
+- **`ApexClassBody.symbolTable`**, for checks that can use a class's compiled SymbolTable.
+- **`encryptWithPassphrase`, `decryptWithPassphrase`, `isEncryptedBuffer`, `DecryptionError`,
+  `ENCRYPTED_MAGIC`**: AES-256-GCM encryption at rest with a scrypt key (N=2^15, r=8, p=3). The
+  scrypt parameters are stored in an authenticated header, and out-of-range values are refused
+  before any key derivation.
+
 ## [0.10.0] — 2026-10-15
 
 ### Added
