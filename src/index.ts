@@ -90,6 +90,15 @@ export { esc, STRICT_CSP_META, INTERACTIVE_CSP_META } from './renderers/html-uti
 // --- Filesystem security ---
 export { secureFs, SECURE_DIR_MODE, SECURE_FILE_MODE } from './fs/secureFs.js';
 
+// --- Encryption at rest ---
+export {
+  ENCRYPTED_MAGIC,
+  DecryptionError,
+  isEncryptedBuffer,
+  encryptWithPassphrase,
+  decryptWithPassphrase,
+} from './crypto/bundleCrypto.js';
+
 // --- Findings (generic) ---
 export type { RiskLevel } from './findings/RiskLevel.js';
 export { RISK_LEVELS } from './findings/RiskLevel.js';
