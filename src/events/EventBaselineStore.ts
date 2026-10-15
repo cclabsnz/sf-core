@@ -17,12 +17,18 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { secureFs } from '../fs/secureFs.js';
 
 export class EventBaselineStore {
   private readonly root: string;
 
   constructor(root?: string) {
     this.root = root ?? EventBaselineStore.defaultRoot();
+    try {
+      secureFs.ensureSecureDir(this.root);
+    } catch {
+      // Non-fatal if root cannot be created immediately
+    }
   }
 
   static defaultRoot(): string {
@@ -184,10 +190,10 @@ function nonEmpty(filePath: string): boolean {
  */
 function writeAtomic(filePath: string, body: string): void {
   const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
+  secureFs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.tmp`);
   try {
-    fs.writeFileSync(tmp, body, 'utf-8');
+    secureFs.writeFileSync(tmp, body, 'utf-8');
     fs.renameSync(tmp, filePath);
   } catch (err) {
     fs.rmSync(tmp, { force: true });
