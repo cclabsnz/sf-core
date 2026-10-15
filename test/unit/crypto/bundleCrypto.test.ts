@@ -81,4 +81,10 @@ describe('bundleCrypto', () => {
   it('does not treat a truncated file as encrypted', () => {
     expect(isEncryptedBuffer(encryptWithPassphrase('x', passphrase).subarray(0, 40))).toBe(false);
   });
+
+  it('refuses a wrong passphrase even after the right one was cached for the same file', () => {
+    const buf = encryptWithPassphrase('payload', passphrase);
+    expect(decryptWithPassphrase(buf, passphrase).toString()).toBe('payload');
+    expect(() => decryptWithPassphrase(buf, 'wrong-passphrase')).toThrow(DecryptionError);
+  });
 });
