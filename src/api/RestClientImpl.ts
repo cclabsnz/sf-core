@@ -1,10 +1,10 @@
-import { createWriteStream } from 'node:fs';
-import { mkdir, rm, stat } from 'node:fs/promises';
+import { rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { Connection } from '@salesforce/core';
+import { secureFs } from '../fs/secureFs.js';
 import type { RestClient } from './RestClient.js';
 
 export class RestClientImpl implements RestClient {
@@ -35,9 +35,9 @@ export class RestClientImpl implements RestClient {
     if (!res.ok || !res.body) {
       throw new Error(`Download failed for ${normalised} (HTTP ${res.status})`);
     }
-    await mkdir(dirname(destPath), { recursive: true });
+    await secureFs.mkdir(dirname(destPath), { recursive: true });
     try {
-      await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), createWriteStream(destPath));
+      await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), secureFs.createWriteStream(destPath));
     } catch (err) {
       await rm(destPath, { force: true }); // never leave a partial file behind
       throw err;

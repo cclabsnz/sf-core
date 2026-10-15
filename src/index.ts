@@ -85,7 +85,10 @@ export {
 export type { Branding, BrandingOverrides } from './report/branding.js';
 export { DEFAULT_BRANDING, resolveBranding } from './report/branding.js';
 export { fontFaceCss, firaFontFaceCss } from './report/fonts.js';
-export { esc } from './renderers/html-utils.js';
+export { esc, STRICT_CSP_META, INTERACTIVE_CSP_META } from './renderers/html-utils.js';
+
+// --- Filesystem security ---
+export { secureFs, SECURE_DIR_MODE, SECURE_FILE_MODE } from './fs/secureFs.js';
 
 // --- Findings (generic) ---
 export type { RiskLevel } from './findings/RiskLevel.js';

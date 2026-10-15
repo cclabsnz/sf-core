@@ -67,6 +67,28 @@ export const NETWORK_EGRESS_RULES: readonly InvariantRule[] = [
   ['websocket client', /\bnew\s+WebSocket\s*\(|(?:from\s+|require\()\s*['"]ws['"]/i],
 ] as const;
 
+/**
+ * Filesystem write tokens. All persistent writes to local stores (history, incidents, event baselines)
+ * must go through secureFs to ensure 0700 dir and 0600 file POSIX permissions.
+ * Raw un-moded fs.writeFile / mkdir / createWriteStream calls outside secureFs are forbidden.
+ */
+export const SECURE_FS_RULES: readonly InvariantRule[] = [
+  ['raw fs.writeFileSync call (use secureFs.writeFileSync)', /\bfs\.writeFileSync\s*\(/],
+  ['raw fs.writeFile call (use secureFs.writeFile)', /\bfs(?:\.promises)?\.writeFile\s*\(/],
+  ['raw fs.mkdirSync call (use secureFs.mkdirSync)', /\bfs\.mkdirSync\s*\(/],
+  ['raw fs.mkdir call (use secureFs.mkdir)', /\bfs(?:\.promises)?\.mkdir\s*\(/],
+  ['raw fs.createWriteStream call (use secureFs.createWriteStream)', /\bfs\.createWriteStream\s*\(/],
+  ['raw fsp.writeFile call (use secureFs.writeFile)', /\bfsp\.writeFile\s*\(/],
+  ['raw fsp.mkdir call (use secureFs.mkdir)', /\bfsp\.mkdir\s*\(/],
+  ['raw fs.appendFile call', /\b(?:fs|fsp)(?:\.promises)?\.appendFile(?:Sync)?\s*\(/],
+  // Named imports (`import { mkdir } from 'node:fs/promises'`) call the same functions bare. Calls
+  // only — the negative lookahead skips typed method definitions such as secureFs's own `mkdir(dirPath: …)`.
+  [
+    'bare fs write call via named import (use secureFs)',
+    /(?<![.\w$])(?:writeFileSync|writeFile|mkdirSync|mkdir|createWriteStream|appendFileSync|appendFile)\s*\((?!\s*\w+\??\s*:)/,
+  ],
+] as const;
+
 /** Recursively collect `.ts` source files (excluding declaration files) under `dir`. */
 export function collectSourceFiles(dir: string): string[] {
   const out: string[] = [];
