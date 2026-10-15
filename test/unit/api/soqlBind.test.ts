@@ -6,6 +6,8 @@ import {
   soqlString,
   soqlRaw,
   escapeSoqlString,
+  escapeSoqlLike,
+  soqlLike,
   SoqlBindError,
 } from '../../../src/api/soqlBind.js';
 
@@ -119,6 +121,65 @@ describe('soql template tag and bind helpers', () => {
 
     it('escapeSoqlString escapes single quotes and backslashes properly', () => {
       expect(escapeSoqlString("abc'def\\ghi")).toBe("abc\\'def\\\\ghi");
+    });
+  });
+
+  describe('no guessing from a value\'s shape or surroundings', () => {
+    it('quotes a date-shaped string compared to a text field', () => {
+      expect(soql`SELECT Id FROM Account WHERE Name = ${'2026-01-01'}`).toBe("SELECT Id FROM Account WHERE Name = '2026-01-01'");
+    });
+
+    it('escapes a value inside a LIKE pattern the template quotes, without re-quoting it', () => {
+      expect(soql`SELECT Id FROM Account WHERE Name LIKE '%${"O'Brien"}%'`).toBe("SELECT Id FROM Account WHERE Name LIKE '%O\\'Brien%'");
+    });
+
+    it('neutralises an injection payload inside a template-quoted literal', () => {
+      const q = soql`SELECT Id FROM User WHERE Name LIKE '%${"x' OR Name != '"}%'`;
+      expect(q).toBe("SELECT Id FROM User WHERE Name LIKE '%x\\' OR Name != \\'%'");
+    });
+
+    it('tracks escaped quotes in the template when deciding whether a placeholder is quoted', () => {
+      // \\' in source is SOQL's escaped quote; a bare \' would be cooked to ' by JS itself.
+      expect(soql`SELECT Id FROM Account WHERE Name = 'it\\'s ' AND Site = ${'a'}`).toBe("SELECT Id FROM Account WHERE Name = 'it\\'s ' AND Site = 'a'");
+    });
+
+    it('rejects a non-string inside a template-quoted literal', () => {
+      expect(() => soql`SELECT Id FROM Account WHERE Name = '${5}'`).toThrow(/Remove the quotes/);
+      expect(() => soql`SELECT Id FROM Account WHERE Name = '${soqlString('x')}'`).toThrow(SoqlBindError);
+    });
+
+    it('rejects an unterminated literal', () => {
+      expect(() => soql`SELECT Id FROM Account WHERE Name = '${'x'}`).toThrow(/Unterminated/);
+    });
+  });
+
+  describe('values SOQL cannot express', () => {
+    it('rejects undefined rather than binding it as null', () => {
+      expect(() => soql`SELECT Id FROM User WHERE ManagerId = ${undefined}`).toThrow(/undefined/);
+    });
+
+    it('rejects numbers that would print in exponent form', () => {
+      expect(() => soql`SELECT Id FROM Opportunity WHERE Amount > ${1e21}`).toThrow(SoqlBindError);
+      expect(() => soql`SELECT Id FROM Opportunity WHERE Amount > ${1e-7}`).toThrow(SoqlBindError);
+      expect(soql`SELECT Id FROM Opportunity WHERE Amount > ${1234.5}`).toBe('SELECT Id FROM Opportunity WHERE Amount > 1234.5');
+    });
+
+    it('rejects mixed arrays', () => {
+      expect(() => soql`SELECT Id FROM User WHERE Id IN ${['a', 1]}`).toThrow(SoqlBindError);
+    });
+  });
+
+  describe('soqlLike', () => {
+    it('matches wildcards and quotes literally', () => {
+      expect(soqlLike("50%_off's").text).toBe("'%50\\%\\_off\\'s%'");
+      expect(soqlLike('abc', 'startsWith').text).toBe("'abc%'");
+      expect(soqlLike('abc', 'endsWith').text).toBe("'%abc'");
+      expect(soqlLike('abc', 'exact').text).toBe("'abc'");
+      expect(soql`SELECT Id FROM Account WHERE Name LIKE ${soqlLike('a_b')}`).toBe("SELECT Id FROM Account WHERE Name LIKE '%a\\_b%'");
+    });
+
+    it('escapeSoqlLike escapes the backslash before adding its own', () => {
+      expect(escapeSoqlLike('a\\%')).toBe('a\\\\\\%');
     });
   });
 });
