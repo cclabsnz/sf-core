@@ -5,6 +5,8 @@ export {
   describeSalesforceError,
   usableApexBody,
   qualifiedName,
+  chunkApexBody,
+  testApexPattern,
 } from './salesforceId.js';
 export { mapWithConcurrency } from './concurrency.js';
 export { FlowRepository } from './flowRepository.js';
