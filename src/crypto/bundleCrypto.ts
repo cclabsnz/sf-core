@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
 
 /**
  * Passphrase encryption for files that hold org data at rest (incident bundles).
@@ -38,19 +38,20 @@ export function isEncryptedBuffer(buf: Buffer): boolean {
 }
 
 // One passphrase decrypts every file of a bundle, each with its own salt, and readers revisit
-// files. Caching derived keys by (passphrase, salt, params) keeps that from re-running scrypt.
-// Keyed by a hash so the passphrase itself is not held as a map key.
-const keyCache = new Map<string, Buffer>();
+// files. Caching derived keys keeps that from re-running scrypt. Entries are keyed by salt and
+// parameters and hold the passphrase they were derived from, compared directly: no fast hash of
+// the passphrase is ever computed.
+const keyCache = new Map<string, { passphrase: string; key: Buffer }>();
 const KEY_CACHE_LIMIT = 256;
 
 function deriveKey(passphrase: string, salt: Buffer, log2N: number, r: number, p: number): Buffer {
-  const id = createHash('sha256').update(passphrase).update('\0').update(salt).update(Buffer.from([log2N, r, p])).digest('hex');
+  const id = `${salt.toString('hex')}:${log2N}:${r}:${p}`;
   const hit = keyCache.get(id);
-  if (hit) return hit;
+  if (hit && hit.passphrase === passphrase) return hit.key;
   const N = 2 ** log2N;
   const key = scryptSync(passphrase, salt, 32, { N, r, p, maxmem: Math.min(MAX_KDF_MEMORY, 256 * N * r) });
   if (keyCache.size >= KEY_CACHE_LIMIT) keyCache.delete(keyCache.keys().next().value as string);
-  keyCache.set(id, key);
+  keyCache.set(id, { passphrase, key });
   return key;
 }
 
@@ -66,7 +67,7 @@ export function encryptWithPassphrase(plaintext: Buffer | string, passphrase: st
   const salt = randomBytes(SALT_LEN);
   const iv = randomBytes(IV_LEN);
   const header = Buffer.concat([ENCRYPTED_MAGIC, Buffer.from([log2N, r, p]), salt, iv]);
-  const cipher = createCipheriv('aes-256-gcm', deriveKey(passphrase, salt, log2N, r, p), iv);
+  const cipher = createCipheriv('aes-256-gcm', deriveKey(passphrase, salt, log2N, r, p), iv, { authTagLength: TAG_LEN });
   cipher.setAAD(header);
   const data = Buffer.isBuffer(plaintext) ? plaintext : Buffer.from(plaintext, 'utf-8');
   const ciphertext = Buffer.concat([cipher.update(data), cipher.final()]);
@@ -91,7 +92,8 @@ export function decryptWithPassphrase(encrypted: Buffer, passphrase: string): Bu
   const ciphertext = encrypted.subarray(o);
 
   try {
-    const decipher = createDecipheriv('aes-256-gcm', deriveKey(passphrase, salt, log2N, r, p), iv);
+    // A pinned tag length stops a truncated tag from being accepted.
+    const decipher = createDecipheriv('aes-256-gcm', deriveKey(passphrase, salt, log2N, r, p), iv, { authTagLength: TAG_LEN });
     decipher.setAAD(header);
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
