@@ -19,3 +19,6 @@ CLAUDE.md
 # write inside the directory; a rule here does not depend on that file existing.
 /.superpowers/
 /.claude/
+
+# IST: hidden tests live in the private <repo>-hidden repo; only the ist-runner ever places them here
+tests/hidden/

@@ -1,0 +1,7 @@
+{
+  "$comment": "ist-harness plugin + ist-link-check config. visibleDirs = where your tests live; hiddenDir = OUTSIDE the repo, never readable by a building agent; riskPaths = substrings that need a spec link before edit.",
+  "visibleDirs": ["test", "src"],
+  "hiddenDir": "~/.ist-hidden/sf-core",
+  "hiddenPaths": ["tests/hidden/", "/.ist-hidden/"],
+  "riskPaths": []
+}
