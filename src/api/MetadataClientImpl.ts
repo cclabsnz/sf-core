@@ -1,4 +1,5 @@
 import type { Connection } from '@salesforce/core';
+import { normaliseApiError } from './ApiError.js';
 import type { MetadataClient } from './MetadataClient.js';
 
 export class MetadataClientImpl implements MetadataClient {
@@ -8,7 +9,12 @@ export class MetadataClientImpl implements MetadataClient {
     // jsforce types `read` to a fixed MetadataType union; we pass through arbitrary
     // type names (e.g. 'SecuritySettings'), so call via a loosened signature.
     const read = this.conn.metadata.read.bind(this.conn.metadata) as (t: string, f: string) => Promise<unknown>;
-    const res: unknown = await read(type, fullName);
+    let res: unknown;
+    try {
+      res = await read(type, fullName);
+    } catch (e) {
+      throw normaliseApiError(e);
+    }
     if (res == null) return null;
     const rec = Array.isArray(res) ? res[0] : res;
     // Metadata.read returns an object with only `fullName`/empty fields when the

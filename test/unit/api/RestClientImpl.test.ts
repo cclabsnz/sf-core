@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
 import { jest } from '@jest/globals';
+import { isApiError } from '../../../src/api/ApiError.js';
 import { RestClientImpl } from '../../../src/api/RestClientImpl.js';
 
 describe('RestClientImpl', () => {
@@ -98,5 +99,14 @@ describe('RestClientImpl', () => {
       await expect(client.getRawToFile('/x/LogFile', dest)).rejects.toThrow();
       expect(fs.existsSync(dest)).toBe(false);
     });
+  });
+
+  it('rejects with an ApiError when the connection raises a jsforce error', async () => {
+    fakeConn.request.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
+    for (const call of [() => client.get('/limits'), () => client.getRaw('/x')]) {
+      const err = await call().catch((e: unknown) => e);
+      expect(isApiError(err)).toBe(true);
+      expect((err as any).errorCode).toBe('INVALID_TYPE');
+    }
   });
 });
