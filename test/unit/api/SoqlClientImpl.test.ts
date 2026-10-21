@@ -9,7 +9,10 @@ describe('SoqlClientImpl', () => {
   beforeEach(() => {
     fakeConn = {
       query: jest.fn(),
-      autoFetchQuery: jest.fn(),
+      autoFetchQuery: jest.fn(() => {
+        throw new Error('autoFetchQuery must not be called');
+      }),
+      request: jest.fn(),
     };
     client = new SoqlClientImpl(fakeConn);
   });
@@ -38,29 +41,38 @@ describe('SoqlClientImpl', () => {
   });
 
   describe('queryAll()', () => {
-    it('returns flattened records from Connection.autoFetchQuery', async () => {
-      fakeConn.autoFetchQuery.mockResolvedValue({
+    it('returns records from a single done page', async () => {
+      fakeConn.query.mockResolvedValue({
         totalSize: 3,
         done: true,
         records: [{ Id: 'a' }, { Id: 'b' }, { Id: 'c' }],
       });
-
       const result = await client.queryAll<{ Id: string }>('SELECT Id FROM User');
-
       expect(result).toHaveLength(3);
-      expect(result[0].Id).toBe('a');
+      expect(fakeConn.request).not.toHaveBeenCalled();
     });
 
     it('returns empty array when no records', async () => {
-      fakeConn.autoFetchQuery.mockResolvedValue({ totalSize: 0, done: true, records: undefined });
-      const result = await client.queryAll('SELECT Id FROM User');
-      expect(result).toEqual([]);
+      fakeConn.query.mockResolvedValue({ totalSize: 0, done: true, records: undefined });
+      expect(await client.queryAll('SELECT Id FROM User')).toEqual([]);
+    });
+
+    it('returns all 12000 records across pages without autoFetchQuery', async () => {
+      const rows = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({ Id: String(from + i) }));
+      fakeConn.query.mockResolvedValue({ totalSize: 12000, done: false, records: rows(2000, 0), nextRecordsUrl: '/q/01' });
+      fakeConn.request
+        .mockResolvedValueOnce({ totalSize: 12000, done: false, records: rows(9000, 2000), nextRecordsUrl: '/q/02' })
+        .mockResolvedValueOnce({ totalSize: 12000, done: true, records: rows(1000, 11000) });
+      const result = await client.queryAll<{ Id: string }>('SELECT Id FROM AuditTrail');
+      expect(result).toHaveLength(12000);
+      expect(result[11999].Id).toBe('11999');
+      expect(fakeConn.request.mock.calls).toEqual([['/q/01'], ['/q/02']]);
+      expect(fakeConn.autoFetchQuery).not.toHaveBeenCalled();
     });
   });
 
   it('rejects with an ApiError when the connection raises a jsforce error', async () => {
     fakeConn.query.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
-    fakeConn.autoFetchQuery.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
     for (const call of [() => client.query('x'), () => client.queryAll('x')]) {
       const err = await call().catch((e: unknown) => e);
       expect(isApiError(err)).toBe(true);

@@ -53,6 +53,14 @@ describe('ToolingClientImpl', () => {
     });
   });
 
+  it('rejects QUERY_TOO_LARGE rather than returning a truncated result at 201 pages', async () => {
+    const next = '/services/data/v67.0/tooling/query/01g-next';
+    fakeConn.tooling.query.mockResolvedValue({ done: false, records: [{ Id: 'x' }], nextRecordsUrl: next });
+    fakeConn.request.mockResolvedValue({ done: false, records: [{ Id: 'x' }], nextRecordsUrl: next });
+    const err = await client.query('SELECT Id FROM ApexClass').catch((e: unknown) => e);
+    expect((err as any).errorCode).toBe('QUERY_TOO_LARGE');
+  });
+
   describe('getRecord()', () => {
     it('calls conn.request with the correct tooling REST path', async () => {
       const mockRecord = { Id: 'abc', Metadata: { ipRelaxation: 'BYPASS' } };

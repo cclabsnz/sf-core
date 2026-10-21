@@ -1,5 +1,6 @@
 import type { Connection } from '@salesforce/core';
 import { normaliseApiError } from './ApiError.js';
+import { collectPages, type QueryPage } from './paging.js';
 import type { ToolingClient } from './ToolingClient.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,21 +16,8 @@ export class ToolingClientImpl implements ToolingClient {
   async query<T>(soql: string): Promise<T[]> {
     try {
       const result = await this.tooling.query(soql);
-      let records: T[] = (result.records ?? []) as T[];
-      let nextUrl: string | undefined = result.nextRecordsUrl as string | undefined;
-
-      // Using conn.request() directly avoids the complex Query<> overload typings
-      // on tooling.queryMore — the nextRecordsUrl is a plain string handled cleanly here.
-      // Circuit breaker: 200 pages × 2000 rows = 400 000 records max before we abort.
-      let page = 0;
-      while (nextUrl && page < 200) {
-        page++;
-        const next = await this.conn.request<{ records: T[]; nextRecordsUrl?: string; done: boolean }>(nextUrl);
-        records = records.concat(next.records ?? []);
-        nextUrl = next.nextRecordsUrl;
-      }
-
-      return records;
+      // conn.request() follows nextRecordsUrl; tooling.queryMore has awkward overload typings.
+      return await collectPages<T>(result, (url) => this.conn.request<QueryPage<T>>(url));
     } catch (e) {
       throw normaliseApiError(e);
     }
