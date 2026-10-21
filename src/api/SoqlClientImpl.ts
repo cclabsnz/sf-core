@@ -1,4 +1,5 @@
 import type { Connection } from '@salesforce/core';
+import { normaliseApiError } from './ApiError.js';
 import type { QueryResult, SoqlClient } from './SoqlClient.js';
 
 // AnyConn widens the return types of Connection methods to avoid
@@ -16,16 +17,24 @@ export class SoqlClientImpl implements SoqlClient {
   }
 
   async query<T>(soql: string): Promise<QueryResult<T>> {
-    const result = await this.anyConn.query(soql);
-    return {
-      totalSize: result.totalSize as number,
-      done: result.done as boolean,
-      records: (result.records ?? []) as T[],
-    };
+    try {
+      const result = await this.anyConn.query(soql);
+      return {
+        totalSize: result.totalSize as number,
+        done: result.done as boolean,
+        records: (result.records ?? []) as T[],
+      };
+    } catch (e) {
+      throw normaliseApiError(e);
+    }
   }
 
   async queryAll<T>(soql: string): Promise<T[]> {
-    const result = await this.anyConn.autoFetchQuery(soql);
-    return (result.records ?? []) as T[];
+    try {
+      const result = await this.anyConn.autoFetchQuery(soql);
+      return (result.records ?? []) as T[];
+    } catch (e) {
+      throw normaliseApiError(e);
+    }
   }
 }

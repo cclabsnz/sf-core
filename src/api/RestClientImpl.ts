@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { Connection } from '@salesforce/core';
+import { normaliseApiError } from './ApiError.js';
 import { secureFs } from '../fs/secureFs.js';
 import type { RestClient } from './RestClient.js';
 
@@ -13,14 +14,22 @@ export class RestClientImpl implements RestClient {
   async get<T>(path: string): Promise<T> {
     const version = this.conn.getApiVersion();
     const normalised = path.startsWith('/') ? path : `/${path}`;
-    return this.conn.request<T>(`/services/data/v${version}${normalised}`);
+    try {
+      return await this.conn.request<T>(`/services/data/v${version}${normalised}`);
+    } catch (e) {
+      throw normaliseApiError(e);
+    }
   }
 
   async getRaw(path: string): Promise<string> {
     const version = this.conn.getApiVersion();
     const normalised = path.startsWith('/') ? path : `/${path}`;
     // jsforce returns the raw body string for non-JSON content types (text/csv here).
-    return this.conn.request<string>(`/services/data/v${version}${normalised}`);
+    try {
+      return await this.conn.request<string>(`/services/data/v${version}${normalised}`);
+    } catch (e) {
+      throw normaliseApiError(e);
+    }
   }
 
   async getRawToFile(path: string, destPath: string): Promise<number> {
