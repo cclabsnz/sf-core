@@ -74,6 +74,17 @@ export async function jwtBearerToken(
   config: JwtBearerConfig,
   deps: { fetch?: FetchFn; now?: () => number } = {},
 ): Promise<AccessToken> {
+  // The assertion is a three-minute bearer credential; never let it travel over cleartext.
+  let loginProtocol: string | undefined;
+  try {
+    loginProtocol = new URL(config.loginUrl).protocol;
+  } catch {
+    loginProtocol = undefined;
+  }
+  if (loginProtocol !== 'https:') {
+    throw new SalesforceApiError('INVALID_LOGIN_URL', 'The login URL must be a valid https URL; nothing was signed or sent.');
+  }
+
   const now = deps.now ?? Date.now;
   const header = b64url(JSON.stringify({ alg: 'RS256' }));
   const claims = b64url(
