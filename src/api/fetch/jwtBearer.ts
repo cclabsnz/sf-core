@@ -46,9 +46,12 @@ export interface AccessToken {
 interface TokenResponse {
   access_token?: string;
   instance_url?: string;
-  error?: string;
-  error_description?: string;
+  // Untrusted: a misbehaving endpoint can send any JSON here, so read them through `str`.
+  error?: unknown;
+  error_description?: unknown;
 }
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
 
 /** base64url without padding, as JWS requires. */
 const b64url = (input: Buffer | string): string =>
@@ -121,7 +124,7 @@ export async function jwtBearerToken(
   if (!res.ok || typeof parsed.access_token !== 'string' || parsed.access_token === '') {
     // Never carry a token into details, even on a failed response.
     const { access_token: _dropped, ...safe } = parsed;
-    throw new SalesforceApiError(parsed.error ?? 'TOKEN_REQUEST_FAILED', explainTokenError(parsed), {
+    throw new SalesforceApiError(str(parsed.error) ?? 'TOKEN_REQUEST_FAILED', explainTokenError(parsed), {
       statusCode: res.status,
       details: safe,
     });
@@ -149,7 +152,7 @@ export async function jwtBearerToken(
  * misconfigurations. The two that actually happen are named here.
  */
 function explainTokenError(parsed: TokenResponse): string {
-  const base = parsed.error_description ?? parsed.error ?? 'The token request failed.';
+  const base = str(parsed.error_description) ?? str(parsed.error) ?? 'The token request failed.';
   if (parsed.error === 'invalid_grant') {
     return (
       `${base} (for the JWT bearer flow this usually means one of: the user is not pre-authorised ` +

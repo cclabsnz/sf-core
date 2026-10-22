@@ -67,6 +67,14 @@ describe('jwtBearerToken', () => {
     expect(calls[0].url).toBe('https://acme.my.salesforce.com/services/oauth2/token');
   });
 
+  it('falls back to TOKEN_REQUEST_FAILED when error or error_description is not a string', async () => {
+    const { fn } = fakeFetch(400, JSON.stringify({ error: 42, error_description: { nested: true } }));
+    const err = await jwtBearerToken(config(), { fetch: fn, now: () => NOW }).catch((e) => e);
+    expect(isApiError(err)).toBe(true);
+    expect(err.errorCode).toBe('TOKEN_REQUEST_FAILED');
+    expect(err.message).toBe('The token request failed.');
+  });
+
   it('explains invalid_grant and keeps the status and code', async () => {
     const body = { error: 'invalid_grant', error_description: "user hasn't approved this consumer" };
     const { fn } = fakeFetch(400, JSON.stringify(body));
