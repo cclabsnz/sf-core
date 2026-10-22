@@ -38,11 +38,14 @@ export class FetchTransport {
    * to an ApiError: it is not a Salesforce error response and carries no errorCode.
    */
   async get(path: string, accept = 'application/json'): Promise<Response> {
-    const res = await this.attempt(path, accept, false);
+    const used = this.currentToken();
+    const res = await this.send(await used, path, accept);
     if (res.ok) return res;
     if (res.status === 401) {
-      // Each call gets at most one re-auth. Concurrent 401s share the refreshed token promise.
-      const retry = await this.attempt(path, accept, true);
+      // Release the 401's socket before the retry; its body says nothing the retry won't.
+      await res.body?.cancel().catch(() => undefined);
+      // Each call gets at most one re-auth, and concurrent 401s on the same token share one exchange.
+      const retry = await this.send(await this.refreshedToken(used), path, accept);
       if (retry.ok) return retry;
       throw await apiErrorFromResponse(retry);
     }
@@ -68,23 +71,28 @@ export class FetchTransport {
     return parsed;
   }
 
-  private async attempt(path: string, accept: string, refresh: boolean): Promise<Response> {
-    const token = await this.getToken(refresh);
-    return this.send(token, path, accept);
+  /** The cached token, fetched lazily on first use and shared by concurrent first calls. */
+  private currentToken(): Promise<AccessToken> {
+    this.token ??= this.startAuth();
+    return this.token;
   }
 
-  /** Lazily fetches and caches the token. `refresh` drops the cached one first, unless another call already did. */
-  private getToken(refresh: boolean): Promise<AccessToken> {
-    if (refresh || this.token === undefined) {
-      const fresh = this.authFn();
-      this.token = fresh;
-      // A failed auth must not be cached, or every later call would fail with the same rejection.
-      fresh.catch(() => {
-        if (this.token === fresh) this.token = undefined;
-      });
-      return fresh;
-    }
+  /**
+   * A token to retry with after `used` drew a 401. Only the first caller holding `used` starts a new
+   * exchange; any later one finds the cache already moved on and reuses that.
+   */
+  private refreshedToken(used: Promise<AccessToken>): Promise<AccessToken> {
+    if (this.token === used || this.token === undefined) this.token = this.startAuth();
     return this.token;
+  }
+
+  private startAuth(): Promise<AccessToken> {
+    const fresh = this.authFn();
+    // A failed auth must not be cached, or every later call would fail with the same rejection.
+    fresh.catch(() => {
+      if (this.token === fresh) this.token = undefined;
+    });
+    return fresh;
   }
 
   private send(token: AccessToken, path: string, accept: string): Promise<Response> {
