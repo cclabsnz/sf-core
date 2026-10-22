@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { isApiError } from '../../../src/api/ApiError.js';
 import { MetadataClientImpl } from '../../../src/api/MetadataClientImpl.js';
+import { jsforceError } from './helpers/jsforce.js';
 
 function connWith(readResult: unknown) {
   const read = jest.fn() as any;
@@ -33,7 +34,7 @@ describe('MetadataClientImpl', () => {
 
   it('rejects with an ApiError when the connection raises a jsforce error', async () => {
     const read = jest.fn() as any;
-    read.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
+    read.mockRejectedValue(jsforceError());
     const c = new MetadataClientImpl({ metadata: { read } } as any);
     const err = await c.read('SecuritySettings', 'Security').catch((e: unknown) => e);
     expect(isApiError(err)).toBe(true);
