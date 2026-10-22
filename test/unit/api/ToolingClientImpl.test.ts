@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { isApiError } from '../../../src/api/ApiError.js';
 import { ToolingClientImpl } from '../../../src/api/ToolingClientImpl.js';
+import { jsforceError } from './helpers/jsforce.js';
 
 describe('ToolingClientImpl', () => {
   let fakeConn: any;
@@ -76,8 +77,8 @@ describe('ToolingClientImpl', () => {
   });
 
   it('rejects with an ApiError when the connection raises a jsforce error', async () => {
-    fakeConn.tooling.query.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
-    fakeConn.request.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
+    fakeConn.tooling.query.mockRejectedValue(jsforceError());
+    fakeConn.request.mockRejectedValue(jsforceError());
     for (const call of [() => client.query('x'), () => client.getRecord('ApexClass', '01p')]) {
       const err = await call().catch((e: unknown) => e);
       expect(isApiError(err)).toBe(true);
