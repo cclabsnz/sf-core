@@ -16,6 +16,7 @@ import { jsforceGetError } from '../helpers/jsforce.js';
 const INSTANCE = 'https://x.my.salesforce.com';
 const ROOT = '/services/data/v64.0';
 const SOQL = 'SELECT Id FROM Account';
+const CHILD_SOQL = 'SELECT Id, (SELECT Id FROM Contacts) FROM Account';
 const TOOLING_SOQL = 'SELECT Id FROM ApexClass';
 
 interface Route {
@@ -51,6 +52,17 @@ const ROUTES: Record<string, Route> = {
     [{ errorCode: 'NOT_FOUND', message: 'The requested resource does not exist' }], 404),
   [`${ROOT}/query${q('SELECT Nope FROM Account')}`]: json(
     [{ errorCode: 'INVALID_FIELD', message: "No such column 'Nope'" }], 400),
+  [`${ROOT}/query${q(CHILD_SOQL)}`]: json({
+    totalSize: 1, done: true,
+    records: [{
+      Id: '001a',
+      Contacts: {
+        totalSize: 3, done: false, records: [{ Id: '003a' }, { Id: '003b' }],
+        nextRecordsUrl: `${ROOT}/query/01g-child-2000`,
+      },
+    }],
+  }),
+  [`${ROOT}/query/01g-child-2000`]: json({ totalSize: 3, done: true, records: [{ Id: '003c' }] }),
   [`${ROOT}/query${q('SELECT Down FROM Account')}`]: {
     status: 503, body: '<html><body>Service unavailable</body></html>', json: false,
   },
@@ -126,6 +138,14 @@ describe('fetch clients agree with the Connection clients', () => {
     const b = await fetchSide().soql.queryAll(SOQL);
     expect(b).toEqual(a);
     expect(b).toHaveLength(5);
+  });
+
+  it('SoqlClient.queryAll follows a two-page child relationship identically', async () => {
+    const a = await new SoqlClientImpl(conn()).queryAll<any>(CHILD_SOQL);
+    const b = await fetchSide().soql.queryAll<any>(CHILD_SOQL);
+    expect(b).toEqual(a);
+    expect(b[0].Contacts.records.map((c: { Id: string }) => c.Id)).toEqual(['003a', '003b', '003c']);
+    expect(b[0].Contacts.done).toBe(true);
   });
 
   it('ToolingClient.query and getRecord match', async () => {
