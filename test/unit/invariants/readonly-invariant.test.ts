@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ORG_WRITE_RULES,
@@ -20,8 +21,15 @@ import {
 
 const SRC_DIR = join(process.cwd(), 'src');
 
-/** `fetch()` is allowed only here, and only as a GET. All org I/O funnels through it. */
-const FETCH_ALLOWLIST = ['api/RestClientImpl.ts'];
+/**
+ * `fetch()` is allowed only in these files. All org I/O funnels through the get-only ones.
+ * The single token-post file authenticates (OAuth token exchange) and writes no org data.
+ */
+const FETCH_ALLOWLIST: Record<string, 'get-only' | 'token-post'> = {
+  'api/RestClientImpl.ts': 'get-only',
+  'api/fetch/FetchTransport.ts': 'get-only',
+  'api/fetch/jwtBearer.ts': 'token-post',
+};
 
 describe('read-only invariant (core)', () => {
   it('scans a non-trivial number of source files', () => {
@@ -41,10 +49,34 @@ describe('read-only invariant (core)', () => {
     }
   });
 
-  it('uses fetch() only in the allowlisted REST client, and only as a GET', () => {
+  it('uses fetch() only in allowlisted files, and only as a GET', () => {
     for (const rel of filesUsingFetch(SRC_DIR)) {
-      expect(FETCH_ALLOWLIST).toContain(rel);
-      expect(fetchUsesNonGetMethod(join(SRC_DIR, rel))).toBe(false);
+      expect(Object.keys(FETCH_ALLOWLIST)).toContain(rel);
+      if (FETCH_ALLOWLIST[rel] === 'get-only') {
+        expect(fetchUsesNonGetMethod(join(SRC_DIR, rel))).toBe(false);
+      }
+    }
+  });
+
+  it('confines the one non-GET request to the OAuth token exchange', () => {
+    const tokenFiles = Object.entries(FETCH_ALLOWLIST).filter(([, mode]) => mode === 'token-post');
+    expect(tokenFiles).toHaveLength(1);
+    for (const [rel] of tokenFiles) {
+      const src = readFileSync(join(SRC_DIR, rel), 'utf8');
+      // Its fetch call carries an invariant:allow marker, so count call sites directly.
+      const calls = src.split('\n').filter((line) => /\bfetch\s*\(/.test(line));
+      expect(calls).toHaveLength(1);
+      expect(src).toContain('/services/oauth2/token');
+    }
+    // Any other file that sends a POST is caught by ORG_WRITE_RULES above.
+  });
+
+  it('keeps get-only entries that exist free of non-GET methods', () => {
+    for (const [rel, mode] of Object.entries(FETCH_ALLOWLIST)) {
+      const file = join(SRC_DIR, rel);
+      if (mode === 'get-only' && existsSync(file)) {
+        expect(fetchUsesNonGetMethod(file)).toBe(false);
+      }
     }
   });
 });
