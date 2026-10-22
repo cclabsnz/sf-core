@@ -80,7 +80,7 @@ paths, SOQL strings and generated HTML, and each of those has a rule (see the as
 
 | Module | Responsibility |
 | --- | --- |
-| `src/api` | The four read-only client interfaces, their `Connection` implementations, the fetch implementations under `src/api/fetch` (`FetchTransport`, the JWT bearer login, three clients), shared paging (`paging.ts`, which throws `QUERY_TOO_LARGE` rather than return a partial result), and `ApiError`. The only place a `Connection` is touched, and the only place `fetch` is called. |
+| `src/api` | The four read-only client interfaces, their `Connection` implementations, the fetch implementations under `src/api/fetch` (`FetchTransport`, the JWT bearer login, three clients), shared paging (`paging.ts`, which follows every page, child relationship pages included, and throws `QUERY_TOO_LARGE` past a configurable page cap rather than return a partial result), and `ApiError` (whose response mapping mirrors jsforce's `HttpApi.getError`, so both transports raise the same `errorCode`). The only place a `Connection` is touched, and the only place `fetch` is called. |
 | `src/context` | `AuditContext` (the clients plus org identity, passed to everything), `AuditCache`, `OrgInfo`, `OrgMetrics`. |
 | `src/platform` | Knowledge about how Salesforce behaves, independent of any one plugin: `apexRepository`, `flowRepository`, `salesforceId`, and `mapWithConcurrency`. |
 | `src/events` | Event log and Real-Time Event capture: `pullEventLogs`, `pullRealtimeEvents`, `eventLogQuery`, `eventLogAccess`, `EventBaselineStore`, `CaptureManifest`. The only module that writes to disk. |

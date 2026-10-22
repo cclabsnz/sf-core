@@ -107,6 +107,13 @@ const { soql, tooling, rest } = createFetchClients({
 const rows = await soql.queryAll<{ Id: string }>('SELECT Id FROM Account');
 ```
 
+Both transports return the same values and raise the same errors for the same org responses.
+`queryAll` follows every page, child relationship pages included, and throws `QUERY_TOO_LARGE`
+rather than return a partial result once it passes the page cap: 200 pages by default, or
+`maxPages` on `createFetchClients` (the `Connection` clients take `{ maxPages }` as a second
+constructor argument). Errors are `SalesforceApiError` with Salesforce's own `errorCode`, or
+`ERROR_HTTP_<status>` when the response carries none; test for them with `isApiError`.
+
 JSON Schemas are reachable as a subpath export:
 
 ```ts
