@@ -121,6 +121,12 @@ describe('normaliseApiError', () => {
     expect(out.details).toEqual(src.data);
   });
 
+  it('keeps the original jsforce error as the cause, so its stack survives', () => {
+    const src = jsforceError();
+    const out = normaliseApiError(src) as SalesforceApiError;
+    expect(out.cause).toBe(src);
+  });
+
   it('returns other errors as the same instance', () => {
     const t = new TypeError('boom');
     expect(normaliseApiError(t)).toBe(t);
