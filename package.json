@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
+    "@jsforce/jsforce-node": "3.10.19",
     "@salesforce/core": "^9",
     "@types/jest": "^29",
     "@types/node": "^22",
