@@ -1,11 +1,6 @@
-import { rm, stat } from 'node:fs/promises';
-import { dirname } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { Connection } from '@salesforce/core';
-import { normaliseApiError } from './ApiError.js';
-import { secureFs } from '../fs/secureFs.js';
+import { SalesforceApiError, apiErrorFromResponse, normaliseApiError } from './ApiError.js';
+import { streamToFile } from './streamToFile.js';
 import type { RestClient } from './RestClient.js';
 
 export class RestClientImpl implements RestClient {
@@ -41,16 +36,8 @@ export class RestClientImpl implements RestClient {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${this.conn.accessToken ?? ''}` },
     });
-    if (!res.ok || !res.body) {
-      throw new Error(`Download failed for ${normalised} (HTTP ${res.status})`);
-    }
-    await secureFs.mkdir(dirname(destPath), { recursive: true });
-    try {
-      await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), secureFs.createWriteStream(destPath));
-    } catch (err) {
-      await rm(destPath, { force: true }); // never leave a partial file behind
-      throw err;
-    }
-    return (await stat(destPath)).size;
+    if (!res.ok) throw await apiErrorFromResponse(res);
+    if (!res.body) throw new SalesforceApiError('EMPTY_BODY', `The org returned no body for ${normalised}.`, { statusCode: res.status });
+    return streamToFile(res.body, destPath);
   }
 }

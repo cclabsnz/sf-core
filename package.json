@@ -11,6 +11,10 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./fetch": {
+      "types": "./lib/fetch.d.ts",
+      "default": "./lib/fetch.js"
+    },
     "./testing": {
       "types": "./lib/testing/invariants.d.ts",
       "default": "./lib/testing/invariants.js"
@@ -81,6 +85,11 @@
   },
   "peerDependencies": {
     "@salesforce/core": "^8 || ^9"
+  },
+  "peerDependenciesMeta": {
+    "@salesforce/core": {
+      "optional": true
+    }
   },
   "dependencies": {
     "ajv": "^8.20.0"
