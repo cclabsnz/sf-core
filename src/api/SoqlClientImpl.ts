@@ -1,6 +1,6 @@
 import type { Connection } from '@salesforce/core';
 import { normaliseApiError } from './ApiError.js';
-import { collectPages, type QueryPage } from './paging.js';
+import { collectPages, type PagingOptions, type QueryPage } from './paging.js';
 import type { QueryResult, SoqlClient } from './SoqlClient.js';
 
 // AnyConn widens the return types of Connection methods to avoid
@@ -13,7 +13,7 @@ type AnyConn = Connection & {
 export class SoqlClientImpl implements SoqlClient {
   private readonly anyConn: AnyConn;
 
-  constructor(conn: Connection) {
+  constructor(conn: Connection, private readonly paging: PagingOptions = {}) {
     this.anyConn = conn as AnyConn;
   }
 
@@ -34,7 +34,7 @@ export class SoqlClientImpl implements SoqlClient {
     try {
       // First page without autoFetch (which caps at 10k), then the shared pager.
       const first = (await this.anyConn.query(soql)) as QueryPage<T>;
-      return await collectPages<T>(first, (url) => this.anyConn.request(url));
+      return await collectPages<T>(first, (url) => this.anyConn.request(url), this.paging);
     } catch (e) {
       throw normaliseApiError(e);
     }

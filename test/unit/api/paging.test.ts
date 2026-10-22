@@ -32,6 +32,23 @@ describe('collectPages', () => {
     expect(fetchNext).toHaveBeenCalledTimes(MAX_QUERY_PAGES - 1);
   });
 
+  it('takes a custom page cap and names it in the QUERY_TOO_LARGE message', async () => {
+    const fetchNext = jest.fn(async (_url: string) => page(['x'], '/q/more'));
+    const err = await collectPages(page(['x'], '/q/more'), fetchNext, { maxPages: 3 }).catch((e: unknown) => e);
+    expect((err as any).errorCode).toBe('QUERY_TOO_LARGE');
+    expect((err as Error).message).toContain('more than 3 pages');
+    expect(fetchNext).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows a cap above the default', async () => {
+    let n = 1;
+    const fetchNext = jest.fn(async (_url: string) => {
+      n++;
+      return page(['x'], n < 250 ? '/q/more' : undefined);
+    });
+    expect(await collectPages(page(['x'], '/q/more'), fetchNext, { maxPages: 250 })).toHaveLength(250);
+  });
+
   it('accepts exactly MAX_QUERY_PAGES pages', async () => {
     let n = 1;
     const fetchNext = jest.fn(async (_url: string) => {

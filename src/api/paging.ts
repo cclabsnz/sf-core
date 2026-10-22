@@ -8,12 +8,18 @@ export interface QueryPage<T> {
   nextRecordsUrl?: string;
 }
 
-/** Hard cap on pages followed: 200 pages of up to 2000 rows is 400 000 records. */
+/** Default cap on pages followed: 200 pages of up to 2000 rows is 400 000 records. */
 export const MAX_QUERY_PAGES = 200;
 
+/** Options for the query clients' paging. */
+export interface PagingOptions {
+  /** Most pages one queryAll may follow, child relationship pages included. Defaults to MAX_QUERY_PAGES. */
+  maxPages?: number;
+}
+
 /**
- * Follow nextRecordsUrl until it is absent and return every record. Exceeding
- * MAX_QUERY_PAGES throws; a partial result is never returned.
+ * Follow nextRecordsUrl until it is absent and return every record. Exceeding the page cap
+ * (`maxPages`, default MAX_QUERY_PAGES) throws; a partial result is never returned.
  *
  * A child relationship (subquery) field that carries its own nextRecordsUrl is followed too,
  * as jsforce's autoFetch did (query.js `_fetchAllSubqueryRecords`): the field becomes
@@ -22,14 +28,19 @@ export const MAX_QUERY_PAGES = 200;
  */
 export async function collectPages<T>(
   first: QueryPage<T>,
-  fetchNext: (nextRecordsUrl: string) => Promise<QueryPage<T>>
+  fetchNext: (nextRecordsUrl: string) => Promise<QueryPage<T>>,
+  opts: PagingOptions = {}
 ): Promise<T[]> {
+  const maxPages = opts.maxPages ?? MAX_QUERY_PAGES;
+  if (!Number.isInteger(maxPages) || maxPages < 1) {
+    throw new RangeError(`maxPages must be a positive integer; got ${String(maxPages)}.`);
+  }
   let pages = 1;
   const follow = async <P>(url: string): Promise<QueryPage<P>> => {
-    if (pages >= MAX_QUERY_PAGES) {
+    if (pages >= maxPages) {
       throw new SalesforceApiError(
         'QUERY_TOO_LARGE',
-        `The query returned more than ${MAX_QUERY_PAGES} pages; narrow the query (for sf-evidence, a shorter time slice). No partial result is returned.`
+        `The query returned more than ${maxPages} pages; narrow the query (for sf-evidence, a shorter time slice). No partial result is returned.`
       );
     }
     pages++;

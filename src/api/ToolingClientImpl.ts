@@ -1,6 +1,6 @@
 import type { Connection } from '@salesforce/core';
 import { normaliseApiError } from './ApiError.js';
-import { collectPages, type QueryPage } from './paging.js';
+import { collectPages, type PagingOptions, type QueryPage } from './paging.js';
 import type { ToolingClient } from './ToolingClient.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9,7 +9,7 @@ type AnyTooling = { query(soql: string): Promise<any> };
 export class ToolingClientImpl implements ToolingClient {
   private readonly tooling: AnyTooling;
 
-  constructor(private readonly conn: Connection) {
+  constructor(private readonly conn: Connection, private readonly paging: PagingOptions = {}) {
     this.tooling = conn.tooling as unknown as AnyTooling;
   }
 
@@ -17,7 +17,7 @@ export class ToolingClientImpl implements ToolingClient {
     try {
       const result = await this.tooling.query(soql);
       // conn.request() follows nextRecordsUrl; tooling.queryMore has awkward overload typings.
-      return await collectPages<T>(result, (url) => this.conn.request<QueryPage<T>>(url));
+      return await collectPages<T>(result, (url) => this.conn.request<QueryPage<T>>(url), this.paging);
     } catch (e) {
       throw normaliseApiError(e);
     }

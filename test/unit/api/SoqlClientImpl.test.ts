@@ -71,6 +71,16 @@ describe('SoqlClientImpl', () => {
     });
   });
 
+  it('honours a custom page cap passed to the constructor', async () => {
+    const capped = new SoqlClientImpl(fakeConn, { maxPages: 2 });
+    fakeConn.query.mockResolvedValue({ totalSize: 3, done: false, records: [{ Id: 'a' }], nextRecordsUrl: '/q/01' });
+    fakeConn.request.mockResolvedValue({ totalSize: 3, done: false, records: [{ Id: 'b' }], nextRecordsUrl: '/q/02' });
+    const err = await capped.queryAll('SELECT Id FROM User').catch((e: unknown) => e);
+    expect((err as any).errorCode).toBe('QUERY_TOO_LARGE');
+    expect((err as Error).message).toContain('more than 2 pages');
+    expect(fakeConn.request).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects with an ApiError when the connection raises a jsforce error', async () => {
     fakeConn.query.mockRejectedValue(Object.assign(new Error('sObject type x'), { name: 'INVALID_TYPE', errorCode: 'INVALID_TYPE', data: { errorCode: 'INVALID_TYPE' } }));
     for (const call of [() => client.query('x'), () => client.queryAll('x')]) {

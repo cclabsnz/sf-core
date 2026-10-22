@@ -225,6 +225,27 @@ describe('FetchSoqlClient', () => {
   });
 });
 
+describe('custom page cap', () => {
+  it('FetchToolingClient honours maxPages', async () => {
+    const err = await new FetchToolingClient(transportFor(fakeFetch()), { maxPages: 1 })
+      .query(TOOLING_SOQL)
+      .catch((e: unknown) => e);
+    expect((err as any).errorCode).toBe('QUERY_TOO_LARGE');
+    expect((err as Error).message).toContain('more than 1 pages');
+  });
+
+  it('createFetchClients passes maxPages to the SOQL and Tooling clients', async () => {
+    const c = createFetchClients({
+      auth: async () => ({ accessToken: 'tok', instanceUrl: INSTANCE }),
+      apiVersion: '64.0',
+      fetch: fakeFetch(),
+      maxPages: 2,
+    });
+    expect((await c.soql.queryAll(SOQL).catch((e: unknown) => e) as any).errorCode).toBe('QUERY_TOO_LARGE');
+    expect(await c.tooling.query(TOOLING_SOQL)).toHaveLength(3);
+  });
+});
+
 describe('FetchRestClient.getRawToFile', () => {
   it('throws EMPTY_BODY when the response has no body', async () => {
     const f = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
