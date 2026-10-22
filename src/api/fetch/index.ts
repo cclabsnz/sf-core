@@ -11,6 +11,7 @@ export { FetchTransport } from './FetchTransport.js';
 export type { FetchTransportOptions } from './FetchTransport.js';
 export { jwtBearerToken, pemSigner } from './jwtBearer.js';
 export type { AccessToken, JwtBearerConfig, Signer } from './jwtBearer.js';
+export type { PagingOptions } from '../paging.js';
 
 export interface CreateFetchClientsOptions {
   /** A JWT bearer config, or your own token source. */
@@ -19,6 +20,8 @@ export interface CreateFetchClientsOptions {
   apiVersion: string;
   fetch?: typeof fetch;
   timeoutMs?: number;
+  /** Page cap for queryAll and Tooling query, child relationship pages included. Defaults to 200. */
+  maxPages?: number;
 }
 
 /** Builds the three clients over one shared transport, so they share one token. */
@@ -42,8 +45,8 @@ export function createFetchClients(opts: CreateFetchClientsOptions): {
     timeoutMs: opts.timeoutMs,
   });
   return {
-    soql: new FetchSoqlClient(transport),
-    tooling: new FetchToolingClient(transport),
+    soql: new FetchSoqlClient(transport, { maxPages: opts.maxPages }),
+    tooling: new FetchToolingClient(transport, { maxPages: opts.maxPages }),
     rest: new FetchRestClient(transport),
     transport,
   };
