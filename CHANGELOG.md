@@ -10,6 +10,25 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+### Breaking
+
+- **`ApiError.statusCode` is now optional** (`number | undefined`). jsforce keeps no HTTP status
+  for a JSON error body, so errors from the `Connection` clients carry none.
+- **`Connection`-path errors are now `SalesforceApiError`, not jsforce's `HttpApiError`.** The
+  details move from `err.data` to `err.details`, and `err instanceof HttpApiError` is now false.
+  `err.name` and `err.errorCode` are unchanged, and the original jsforce error is kept as
+  `err.cause`.
+- **`queryAll` no longer honours `maxQueryLimit` or `SF_ORG_MAX_QUERY_LIMIT`.** It pages to
+  completion and throws `QUERY_TOO_LARGE` past a page cap (default 200 pages, child
+  relationship pages included) instead of truncating. Set the cap with `{ maxPages }` as the
+  second constructor argument of `SoqlClientImpl`, `ToolingClientImpl`, `FetchSoqlClient` and
+  `FetchToolingClient`, or `maxPages` on `createFetchClients`.
+- **`RestClientImpl.getRawToFile` throws an `ApiError`** (built from the response, or
+  `EMPTY_BODY` when there is no body) instead of a plain "Download failed" `Error`.
+- **An error response with no Salesforce code is `ERROR_HTTP_<status>`**, with the raw body as
+  the message, and an array of more than one error is `MULTIPLE_API_ERRORS`, exactly as jsforce
+  reports them. Both transports now raise the same code for the same response.
+
 ### Added
 
 - **Fetch transport and `@cclabsnz/sf-core/fetch`.** `createFetchClients`, `FetchTransport`,
@@ -17,8 +36,9 @@ CycloneDX SBOM for the build.
   the same `SoqlClient`, `ToolingClient` and `RestClient` interfaces over global `fetch`, with a
   JWT bearer login, for hosts that cannot carry `@salesforce/core`. The entry point reaches
   neither `@salesforce/core` nor jsforce. The only non-GET request is the OAuth token exchange,
-  in one file. `loginUrl` and the returned `instance_url` must be https.
-- `SalesforceApiError`, and a shared paging helper used by both transports.
+  in one file. `loginUrl` and the returned `instance_url` must be https. Concurrent requests
+  that hit an expired token share one re-authentication.
+- `SalesforceApiError`, `PagingOptions`, and a shared paging helper used by both transports.
 
 ### Fixed
 
@@ -30,13 +50,15 @@ CycloneDX SBOM for the build.
   `autoFetchQuery`, which stops at the configured cap with only a warning.
 - **`ToolingClientImpl.query` no longer stops silently after 200 pages.** Both clients now throw
   `QUERY_TOO_LARGE` instead of returning a partial result.
+- **Child relationship (subquery) results are complete.** A subquery field that carries its own
+  `nextRecordsUrl` is followed to the end on both transports, as `autoFetchQuery` used to do.
+- **`classifyEventLogAccessError` reads only `errorCode`**, so an org error classifies the same
+  way whichever transport raised it. `ERROR_HTTP_403` is `no-permission`; `ERROR_HTTP_404` and
+  `ERROR_HTTP_400` are `not-enabled`.
 
 ### Changed
 
-- `ApiError.statusCode` is now optional (`number | undefined`).
 - `@salesforce/core` is now an optional peer dependency.
-- `RestClientImpl.getRawToFile` now throws an `ApiError` (built from the response, or
-  `EMPTY_BODY` when there is no body) instead of a plain "Download failed" `Error`.
 
 ## [0.11.0] — 2026-10-16
 

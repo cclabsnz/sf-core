@@ -119,13 +119,21 @@ false confidence, which is worse than no report.
 are recorded as structured data and surfaced, rather than collapsing into a zero.
 
 **Evidence.** Every Salesforce error from either transport satisfies `isApiError`, carrying
-Salesforce's own `errorCode` (`test/unit/api/ApiError.test.ts`; parity of `errorCode` across
-transports in `test/unit/api/fetch/clients.test.ts`, "a 400 INVALID_FIELD gives the same
-errorCode on both sides"), so a classifier keyed on it cannot miss a real error. No query
-returns a partial result: `queryAll` pages to completion or throws `QUERY_TOO_LARGE`
-(`test/unit/api/paging.test.ts`, `SoqlClientImpl.test.ts` "returns all 12000 records across
-pages without autoFetchQuery", `ToolingClientImpl.test.ts` "rejects QUERY_TOO_LARGE rather
-than returning a truncated result at 201 pages"), and a missing `Date` header throws
+Salesforce's own `errorCode`, or `ERROR_HTTP_<status>` when the body carries none. The fetch
+transport builds its errors the way jsforce's `HttpApi.getError` does, and the tests use
+jsforce's own `getError` as the oracle (`test/unit/api/ApiError.test.ts`, "matches jsforce
+getError"; parity across transports in `test/unit/api/fetch/clients.test.ts`, "a 400
+INVALID_FIELD gives the same errorCode on both sides", "a non-JSON 503 gives the same
+errorCode, message and details on both sides"), so a classifier keyed on it cannot miss a
+real error, and `classifyEventLogAccessError` reads only `errorCode`, so it classifies an
+error the same way from either transport (`test/unit/events/eventLogAccess.test.ts`). No query
+returns a partial result: `queryAll` pages to completion, child relationship pages included,
+or throws `QUERY_TOO_LARGE` past the page cap (200 by default, set with `maxPages`)
+(`test/unit/api/paging.test.ts`, including "follows a two-page child relationship and leaves
+the shape jsforce leaves" and "counts child pages toward the page cap";
+`SoqlClientImpl.test.ts` "returns all 12000 records across pages without autoFetchQuery";
+`ToolingClientImpl.test.ts` "rejects QUERY_TOO_LARGE rather than returning a truncated result
+at 201 pages"), and a missing `Date` header throws
 (`FetchTransport.test.ts`, "serverDate rejects when the Date header is missing or invalid").
 Absent-versus-refused is distinguished explicitly: an `INVALID_TYPE` or
 "sObject type ... is not supported" error means the feature is genuinely absent on that org,
