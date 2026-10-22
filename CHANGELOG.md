@@ -10,7 +10,33 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Fetch transport and `@cclabsnz/sf-core/fetch`.** `createFetchClients`, `FetchTransport`,
+  `FetchSoqlClient`, `FetchToolingClient`, `FetchRestClient`, `jwtBearerToken` and `pemSigner`:
+  the same `SoqlClient`, `ToolingClient` and `RestClient` interfaces over global `fetch`, with a
+  JWT bearer login, for hosts that cannot carry `@salesforce/core`. The entry point reaches
+  neither `@salesforce/core` nor jsforce. The only non-GET request is the OAuth token exchange,
+  in one file. `loginUrl` and the returned `instance_url` must be https.
+- `SalesforceApiError`, and a shared paging helper used by both transports.
+
+### Fixed
+
+- **`isApiError` now accepts real Salesforce errors.** jsforce's `HttpApiError` carries
+  `errorCode` but no `statusCode`, so every real org error failed the check and consumers that
+  classify degradations never matched one. Errors from the `Connection` clients are now wrapped
+  as `SalesforceApiError`.
+- **`SoqlClientImpl.queryAll` no longer truncates at 10,000 records.** It followed
+  `autoFetchQuery`, which stops at the configured cap with only a warning.
+- **`ToolingClientImpl.query` no longer stops silently after 200 pages.** Both clients now throw
+  `QUERY_TOO_LARGE` instead of returning a partial result.
+
+### Changed
+
+- `ApiError.statusCode` is now optional (`number | undefined`).
+- `@salesforce/core` is now an optional peer dependency.
+- `RestClientImpl.getRawToFile` now throws an `ApiError` (built from the response, or
+  `EMPTY_BODY` when there is no body) instead of a plain "Download failed" `Error`.
 
 ## [0.11.0] — 2026-10-16
 
