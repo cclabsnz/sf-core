@@ -21,7 +21,7 @@ contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/
 
 | Area | What it provides |
 | --- | --- |
-| **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient`: read-only wrappers over a `@salesforce/core` `Connection` |
+| **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient`: read-only wrappers over a `@salesforce/core` `Connection`, or, via `@cclabsnz/sf-core/fetch`, over plain `fetch` with a JWT bearer login (no `@salesforce/core`; `MetadataClient` is Connection-only) |
 | **Platform behaviour** | `FlowRepository`, `ApexRepository`, `isSalesforceId`, `describeSalesforceError`, `mapWithConcurrency` |
 | **Event capture** | `EventBaselineStore`, `RTE_CATALOG`, `pullEventLogs`, `pullRealtimeEvents`, `CaptureManifest`: bounded, resumable EventLogFile and Real-Time Event pulls |
 | **Activity engine** | Turns captured EventLogFile rows into a classified, sessionised account of one actor's API activity. Classifies each call as a read, write, destructive, control or unknown operation — `unknown` is a real answer for undecomposed `/composite` requests, not a failure to classify — resolves them into their subrequests, groups events into runs and cycles, recovers the repeating sequence, and flags outliers on median and MAD. Pure functions; no org connection. |
@@ -84,6 +84,29 @@ await mapWithConcurrency(versions, 8, async (v) => {
 });
 ```
 
+### Without @salesforce/core
+
+`@cclabsnz/sf-core/fetch` carries no `@salesforce/core` or jsforce, so it fits a Lambda or edge
+bundle. `@salesforce/core` is an optional peer dependency. It logs in with the JWT bearer flow
+(an External Client App with a certificate) and implements `SoqlClient`, `ToolingClient` and
+`RestClient`:
+
+```ts
+import { createFetchClients, pemSigner } from '@cclabsnz/sf-core/fetch';
+
+const { soql, tooling, rest } = createFetchClients({
+  apiVersion: '64.0',
+  auth: {
+    clientId: process.env.SF_CLIENT_ID!,
+    username: process.env.SF_USERNAME!,
+    loginUrl: 'https://login.salesforce.com', // https only
+    sign: pemSigner(process.env.SF_PRIVATE_KEY!),
+  },
+});
+
+const rows = await soql.queryAll<{ Id: string }>('SELECT Id FROM Account');
+```
+
 JSON Schemas are reachable as a subpath export:
 
 ```ts
@@ -96,7 +119,8 @@ const couplingGraphSchema = loadSchema('coupling-graph');
 Both are enforced as tests, not asserted in prose. Run them yourself with `pnpm test`:
 
 - **Read-only.** No jsforce mutation API, HTTP write verb, or bulk/composite write path may
-  appear in source. Every org request is a SOQL query, a REST **GET**, or a Metadata read.
+  appear in source. The one exception is the OAuth token `POST` in the fetch login, which
+  writes no org data and is confined to one file by a test. Every org request is a SOQL query, a REST **GET**, or a Metadata read.
 - **Local-first.** No third-party HTTP client, telemetry endpoint, LLM call, websocket, or
   remote asset in a generated report. The only network destination is the org the operator
   authenticated against.

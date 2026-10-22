@@ -38,7 +38,12 @@ wanted them. Computing *what happened* belongs here; judging *what it is worth* 
 
 ## The one trust boundary
 
-Everything this package does with an org goes through four client interfaces in `src/api`:
+Everything this package does with an org goes through four client interfaces in `src/api`.
+There are two transports behind the same interfaces: the `@salesforce/core` `Connection`
+(`SoqlClientImpl`, `ToolingClientImpl`, `RestClientImpl`, `MetadataClientImpl`) and a
+fetch-based one (`FetchSoqlClient`, `FetchToolingClient`, `FetchRestClient`, exported as
+`@cclabsnz/sf-core/fetch`) for hosts that cannot carry `@salesforce/core`, such as a Lambda
+bundle. `MetadataClient` has no fetch implementation.
 
 | Client | Wraps |
 | --- | --- |
@@ -46,6 +51,14 @@ Everything this package does with an org goes through four client interfaces in 
 | `ToolingClient` | Tooling API queries |
 | `RestClient` | REST GETs, including the global describe |
 | `MetadataClient` | Metadata API list and retrieve |
+
+On the fetch path, `FetchTransport` is the only door to the org: every request is a bearer
+GET through it (`test/unit/api/fetch/FetchTransport.test.ts`, "sends a bearer token and a GET
+with no method override"). The one request that is not a GET is the OAuth token exchange in
+`src/api/fetch/jwtBearer.ts`, which authenticates and writes no org data
+(see [ASSURANCE_CASE.md](ASSURANCE_CASE.md), Claim 1). The fetch entry point reaches neither
+`@salesforce/core` nor jsforce, including as a type import
+(`test/unit/invariants/fetch-entry.test.ts`, "reaches @salesforce/core and jsforce from nowhere").
 
 Concentrating org access in four interfaces is what makes the read-only property checkable.
 `test/unit/invariants/readonly-invariant.test.ts` scans the source for org-mutating patterns
@@ -67,7 +80,7 @@ paths, SOQL strings and generated HTML, and each of those has a rule (see the as
 
 | Module | Responsibility |
 | --- | --- |
-| `src/api` | The four read-only clients, their implementations, and `ApiError`. The only place a `Connection` is touched. |
+| `src/api` | The four read-only client interfaces, their `Connection` implementations, the fetch implementations under `src/api/fetch` (`FetchTransport`, the JWT bearer login, three clients), shared paging (`paging.ts`, which throws `QUERY_TOO_LARGE` rather than return a partial result), and `ApiError`. The only place a `Connection` is touched, and the only place `fetch` is called. |
 | `src/context` | `AuditContext` (the clients plus org identity, passed to everything), `AuditCache`, `OrgInfo`, `OrgMetrics`. |
 | `src/platform` | Knowledge about how Salesforce behaves, independent of any one plugin: `apexRepository`, `flowRepository`, `salesforceId`, and `mapWithConcurrency`. |
 | `src/events` | Event log and Real-Time Event capture: `pullEventLogs`, `pullRealtimeEvents`, `eventLogQuery`, `eventLogAccess`, `EventBaselineStore`, `CaptureManifest`. The only module that writes to disk. |

@@ -11,8 +11,11 @@ This is the security-relevant design document referred to by [SECURITY.md](../SE
 
 This package reads a Salesforce org and writes two kinds of output: captured event data, to
 disk under the operator's home directory, and HTML reports, which its dependants hand to
-clients. It holds no credentials of its own, uses the Salesforce CLI's existing authenticated
-connection, and exposes no network service.
+clients. It holds no credentials of its own: it uses the Salesforce CLI's existing authenticated
+connection, or, on the fetch path, a signing key the caller supplies and which stays in the
+caller's process (never logged or put in an error message,
+`test/unit/api/fetch/jwtBearer.test.ts`: "rejects an empty key with guidance and no key
+material", "strips access_token from error details"). It exposes no network service.
 
 The threats that matter therefore are not "an attacker attacks the library". They are:
 
@@ -37,14 +40,42 @@ connection, sObject, tooling or metadata handle; bulk and composite paths; and H
 verbs. A match fails the build. The check is static, so a mutating call cannot pass by simply
 not executing during tests.
 
+**The one request that is not a GET.** The fetch transport logs in with the OAuth 2.0 JWT
+bearer flow: a single `POST` to `/services/oauth2/token` in `src/api/fetch/jwtBearer.ts`. It is
+not an org write. It sends a signed assertion and receives an access token; no record,
+metadata or setting changes, and the org holds no state from it beyond its own login history.
+Two tests confine it:
+
+- `test/unit/invariants/readonly-invariant.test.ts`, "confines the one non-GET request to the
+  OAuth token exchange": exactly one allowlisted file may post, it must contain the token path,
+  and it has exactly the expected `fetch(` call sites. Every other `fetch` file is `get-only`
+  and is checked for non-GET methods ("keeps get-only entries that exist free of non-GET
+  methods").
+- Same file, "has no invariant:allow-suppressed fetch call or write verb outside the token
+  exchange": the other scans skip lines carrying an `invariant:allow` comment, so this test
+  looks at exactly those lines and fails if any file other than `jwtBearer.ts` has an
+  allow-comment on a `fetch(` or write-verb line.
+
+Both `loginUrl` and the returned `instance_url` must be `https`. A non-https `loginUrl`
+is rejected before anything is signed or sent, and a non-https or malformed `instance_url` is
+rejected without echoing the token
+(`test/unit/api/fetch/jwtBearer.test.ts`: "rejects a non-https loginUrl before signing or
+sending anything", "rejects a non-https instance_url without echoing the token", "rejects a
+missing or malformed instance_url").
+
 **Limitation.** The scan is pattern-based. Sufficiently indirect construction of a call (for
 example, a method name assembled at runtime) would evade it. This is accepted: the same
 indirection would be visible in review, and the rule is a floor rather than a proof.
 
 ## Claim 2: it sends nothing anywhere but the authenticated org
 
-**Argument.** The only HTTP client is the one inside `@salesforce/core`, pointed at the org
-the operator authenticated against. There is no telemetry, no analytics, and no model API.
+**Argument.** The only HTTP clients are the one inside `@salesforce/core` and, on the fetch
+path, the global `fetch` inside `FetchTransport` and `jwtBearer.ts`. Both are pointed at the
+org the operator authenticated against: the fetch path talks only to the token endpoint the
+operator configured (`https` only) and the `instance_url` that endpoint returns
+(`test/unit/api/fetch/jwtBearer.test.ts`, the https tests above). `fetch(` may appear only in
+the allowlisted files (`readonly-invariant.test.ts`, "uses fetch() only in allowlisted files,
+and only as a GET"). There is no telemetry, no analytics, and no model API.
 Generated reports are self-contained, so opening one offline requests nothing.
 
 **Evidence.** `test/unit/invariants/network-egress.test.ts` fails the build if any source file
@@ -87,7 +118,16 @@ false confidence, which is worse than no report.
 **Argument.** A read that was refused is never rendered as an absence of the thing. Failures
 are recorded as structured data and surfaced, rather than collapsing into a zero.
 
-**Evidence.** Absent-versus-refused is distinguished explicitly: an `INVALID_TYPE` or
+**Evidence.** Every Salesforce error from either transport satisfies `isApiError`, carrying
+Salesforce's own `errorCode` (`test/unit/api/ApiError.test.ts`; parity of `errorCode` across
+transports in `test/unit/api/fetch/clients.test.ts`, "a 400 INVALID_FIELD gives the same
+errorCode on both sides"), so a classifier keyed on it cannot miss a real error. No query
+returns a partial result: `queryAll` pages to completion or throws `QUERY_TOO_LARGE`
+(`test/unit/api/paging.test.ts`, `SoqlClientImpl.test.ts` "returns all 12000 records across
+pages without autoFetchQuery", `ToolingClientImpl.test.ts` "rejects QUERY_TOO_LARGE rather
+than returning a truncated result at 201 pages"), and a missing `Date` header throws
+(`FetchTransport.test.ts`, "serverDate rejects when the Date header is missing or invalid").
+Absent-versus-refused is distinguished explicitly: an `INVALID_TYPE` or
 "sObject type ... is not supported" error means the feature is genuinely absent on that org,
 while any other error is a failed read and is recorded as such. Captures are written
 atomically, so presence of a file on disk means the capture completed.
