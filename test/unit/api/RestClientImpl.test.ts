@@ -94,7 +94,7 @@ describe('RestClientImpl', () => {
     });
 
     it('throws and leaves no file on a non-2xx response', async () => {
-      global.fetch = jest.fn(async () => ({ ok: false, status: 404, body: null })) as any;
+      global.fetch = jest.fn(async () => ({ ok: false, status: 404, body: null, text: async () => '' })) as any;
       const dest = path.join(tmp, 'out.csv');
       await expect(client.getRawToFile('/x/LogFile', dest)).rejects.toThrow();
       expect(fs.existsSync(dest)).toBe(false);

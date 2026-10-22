@@ -2,6 +2,7 @@
 
 // --- API clients ---
 export * from './api/index.js';
+export * from './api/fetch/index.js';
 export type { MetadataClient } from './api/MetadataClient.js';
 export { MetadataClientImpl } from './api/MetadataClientImpl.js';
 
