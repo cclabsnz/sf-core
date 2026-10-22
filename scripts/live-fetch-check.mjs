@@ -25,21 +25,30 @@ const { Org } = await import('@salesforce/core');
 const lib = await import('../lib/index.js');
 const fetchLib = await import('../lib/fetch.js');
 
-const org = await Org.create({ aliasOrUsername: process.env.SF_ALIAS || 'devedition' });
-const conn = org.getConnection(API_VERSION);
-const conn$ = {
-  soql: new lib.SoqlClientImpl(conn),
-  rest: new lib.RestClientImpl(conn),
-};
-const fetched = fetchLib.createFetchClients({
-  apiVersion: API_VERSION,
-  auth: {
-    clientId: process.env.SF_CLIENT_ID,
-    username: process.env.SF_USERNAME,
-    loginUrl: process.env.SF_LOGIN_URL,
-    sign: fetchLib.pemSigner(readFileSync(process.env.SF_PRIVATE_KEY_FILE, 'utf8')),
-  },
-});
+// Setup failures print a fixed line and the error code only: a stack or message could carry a
+// path, a username or key material.
+let conn$;
+let fetched;
+try {
+  const org = await Org.create({ aliasOrUsername: process.env.SF_ALIAS || 'devedition' });
+  const conn = org.getConnection(API_VERSION);
+  conn$ = {
+    soql: new lib.SoqlClientImpl(conn),
+    rest: new lib.RestClientImpl(conn),
+  };
+  fetched = fetchLib.createFetchClients({
+    apiVersion: API_VERSION,
+    auth: {
+      clientId: process.env.SF_CLIENT_ID,
+      username: process.env.SF_USERNAME,
+      loginUrl: process.env.SF_LOGIN_URL,
+      sign: fetchLib.pemSigner(readFileSync(process.env.SF_PRIVATE_KEY_FILE, 'utf8')),
+    },
+  });
+} catch (err) {
+  console.error(`Setup failed (org alias, key file or fetch clients): ${err?.errorCode ?? err?.code ?? 'unknown'}`);
+  process.exit(2);
+}
 
 let failed = 0;
 const report = (name, ok, detail) => {
@@ -92,6 +101,7 @@ await attempt('4 INVALID_FIELD error', async () => {
   const ok =
     ea !== undefined &&
     eb !== undefined &&
+    codes[0] === 'INVALID_FIELD' &&
     isDeepStrictEqual(codes[0], codes[1]) &&
     lib.isApiError(ea) &&
     lib.isApiError(eb);
