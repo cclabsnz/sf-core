@@ -39,6 +39,7 @@ This is package-level configuration, not org-level. Adding a trusted publisher t
    pnpm test
    npm pack --dry-run
    ```
+   If the release touches `src/api`, also run `pnpm run build && node scripts/live-fetch-check.mjs` against a real org first (see the header of that script for the environment it needs); it expects five PASS lines.
    Read the `npm pack` output. The `files` allowlist in `package.json` is what keeps working
    notes and org data out of the tarball. npm does not read `.gitignore`, and it certainly does
    not read a *global* gitignore, so a directory that never appears in `git status` can still
