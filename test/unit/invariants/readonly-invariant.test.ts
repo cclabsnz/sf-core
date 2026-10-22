@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import {
   ORG_WRITE_RULES,
   collectSourceFiles,
@@ -68,7 +68,25 @@ describe('read-only invariant (core)', () => {
       expect(calls).toHaveLength(1);
       expect(src).toContain('/services/oauth2/token');
     }
-    // Any other file that sends a POST is caught by ORG_WRITE_RULES above.
+  });
+
+  it('has no invariant:allow-suppressed fetch call or write verb outside the token exchange', () => {
+    // Both scans above skip lines carrying invariant:allow, so a second file copying the
+    // token exchange's two comments would pass them. Look at exactly those suppressed lines.
+    const writeVerb = /method\s*:\s*['"`](?:POST|PUT|PATCH|DELETE)/i;
+    const suppressed: string[] = [];
+    for (const file of collectSourceFiles(SRC_DIR)) {
+      const rel = relative(SRC_DIR, file).split('\\').join('/');
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line) => {
+          if (line.includes('invariant:allow') && (/\bfetch\s*\(/.test(line) || writeVerb.test(line))) {
+            suppressed.push(rel);
+          }
+        });
+    }
+    // The fetch( line and the method: 'POST' line, both in the token exchange.
+    expect(suppressed).toEqual(['api/fetch/jwtBearer.ts', 'api/fetch/jwtBearer.ts']);
   });
 
   it('keeps get-only entries that exist free of non-GET methods', () => {

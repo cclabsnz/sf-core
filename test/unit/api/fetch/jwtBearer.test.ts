@@ -130,6 +130,25 @@ describe('jwtBearerToken', () => {
   });
 });
 
+describe('jwtBearerToken loginUrl', () => {
+  it('rejects a non-https loginUrl before signing or sending anything', async () => {
+    const { fn, calls } = fakeFetch(200, '{}');
+    let signed = 0;
+    const sign = async () => {
+      signed++;
+      return Buffer.from('x');
+    };
+    for (const loginUrl of ['http://login.salesforce.com', 'not a url', 'http://user:pw@host']) {
+      const err = await jwtBearerToken({ ...config(loginUrl), sign }, { fetch: fn, now: () => NOW }).catch((e) => e);
+      expect(err.errorCode).toBe('INVALID_LOGIN_URL');
+      expect(err.message).not.toContain('pw');
+      expect(err.message).not.toContain('host');
+    }
+    expect(calls).toHaveLength(0);
+    expect(signed).toBe(0);
+  });
+});
+
 describe('pemSigner', () => {
   it('signs identically whether the PEM has real or escaped newlines', async () => {
     const escaped = pem.replace(/\n/g, '\\n');
