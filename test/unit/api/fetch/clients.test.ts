@@ -11,6 +11,7 @@ import { FetchToolingClient } from '../../../../src/api/fetch/FetchToolingClient
 import { FetchRestClient } from '../../../../src/api/fetch/FetchRestClient.js';
 import { createFetchClients } from '../../../../src/api/fetch/index.js';
 import { streamToFile } from '../../../../src/api/streamToFile.js';
+import { jsforceGetError } from '../helpers/jsforce.js';
 
 const INSTANCE = 'https://x.my.salesforce.com';
 const ROOT = '/services/data/v64.0';
@@ -50,13 +51,14 @@ const ROUTES: Record<string, Route> = {
     [{ errorCode: 'NOT_FOUND', message: 'The requested resource does not exist' }], 404),
   [`${ROOT}/query${q('SELECT Nope FROM Account')}`]: json(
     [{ errorCode: 'INVALID_FIELD', message: "No such column 'Nope'" }], 400),
+  [`${ROOT}/query${q('SELECT Down FROM Account')}`]: {
+    status: 503, body: '<html><body>Service unavailable</body></html>', json: false,
+  },
+  [`${ROOT}/query${q('SELECT Two FROM Account')}`]: json(
+    [{ errorCode: 'A', message: 'a' }, { errorCode: 'B', message: 'b' }], 400),
 };
 
-// A jsforce-shaped failure: errorCode and data, no statusCode.
-function jsforceError(route: Route): Error {
-  const first = (JSON.parse(route.body) as { errorCode: string; message: string }[])[0];
-  return Object.assign(new Error(first.message), { name: first.errorCode, errorCode: first.errorCode, data: first });
-}
+const contentType = (r: Route) => (r.json ? 'application/json;charset=UTF-8' : 'text/plain;charset=UTF-8');
 
 function serve(p: string): Route {
   return ROUTES[p] ?? json([{ errorCode: 'NOT_FOUND', message: `no route ${p}` }], 404);
@@ -65,7 +67,8 @@ function serve(p: string): Route {
 function fakeConn() {
   const request = async (url: string) => {
     const r = serve(url);
-    if (r.status >= 400) throw jsforceError(r);
+    // The Connection side raises whatever jsforce's own getError builds from the same response.
+    if (r.status >= 400) throw await jsforceGetError(r.status, contentType(r), r.body);
     return r.json ? JSON.parse(r.body) : r.body;
   };
   return {
@@ -82,7 +85,7 @@ function fakeFetch(seen: string[] = []): typeof fetch {
   return (async (url: string) => {
     seen.push(url);
     const r = serve(url.slice(INSTANCE.length));
-    return new Response(r.body, { status: r.status });
+    return new Response(r.body, { status: r.status, headers: { 'content-type': contentType(r) } });
   }) as unknown as typeof fetch;
 }
 
@@ -161,6 +164,20 @@ describe('fetch clients agree with the Connection clients', () => {
     expect(isApiError(b)).toBe(true);
     expect((b as any).errorCode).toBe('INVALID_FIELD');
     expect((b as any).errorCode).toBe((a as any).errorCode);
+  });
+
+  it.each([
+    ['a non-JSON 503', 'SELECT Down FROM Account', 'ERROR_HTTP_503'],
+    ['a two-entry error array', 'SELECT Two FROM Account', 'MULTIPLE_API_ERRORS'],
+  ])('%s gives the same errorCode, message and details on both sides', async (_name, bad, code) => {
+    const a = await new SoqlClientImpl(conn()).queryAll(bad).catch((e: unknown) => e);
+    const b = await fetchSide().soql.queryAll(bad).catch((e: unknown) => e);
+    expect(isApiError(a)).toBe(true);
+    expect(isApiError(b)).toBe(true);
+    expect((b as any).errorCode).toBe(code);
+    expect((b as any).errorCode).toBe((a as any).errorCode);
+    expect((b as any).message).toBe((a as any).message);
+    expect((b as any).details).toEqual((a as any).details);
   });
 
   it('a non-OK LogFile download gives the same errorCode and leaves no file on both sides', async () => {

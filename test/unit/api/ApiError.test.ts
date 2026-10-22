@@ -1,13 +1,10 @@
 import { apiErrorFromResponse, isApiError, normaliseApiError, SalesforceApiError } from '../../../src/api/ApiError.js';
+import { jsforceError, jsforceGetError } from './helpers/jsforce.js';
 
-const jsforceError = () =>
-  Object.assign(new Error('sObject type x'), {
-    name: 'INVALID_TYPE',
-    errorCode: 'INVALID_TYPE',
-    data: { errorCode: 'INVALID_TYPE' },
-  });
+const JSON_TYPE = 'application/json;charset=UTF-8';
 
-const res = (status: number, body: string) => ({ status, text: async () => body });
+const res = (status: number, body: string, contentType = JSON_TYPE) =>
+  new Response(body, { status, headers: { 'content-type': contentType } });
 
 describe('isApiError', () => {
   it('returns true for an object with errorCode (string) and statusCode (number)', () => {
@@ -54,29 +51,63 @@ describe('SalesforceApiError', () => {
 });
 
 describe('apiErrorFromResponse', () => {
-  it('reads errorCode and message from an array body', async () => {
+  it('reads errorCode and message from a one-entry array body', async () => {
     const e = await apiErrorFromResponse(res(400, '[{"message":"No such column","errorCode":"INVALID_FIELD"}]'));
     expect(e.errorCode).toBe('INVALID_FIELD');
     expect(e.statusCode).toBe(400);
     expect(e.message).toBe('No such column');
+    expect(e.details).toEqual({ message: 'No such column', errorCode: 'INVALID_FIELD' });
   });
 
-  it('reads error and error_description from an OAuth object body', async () => {
+  it('gives MULTIPLE_API_ERRORS for an array of more than one entry', async () => {
+    const body = '[{"message":"a","errorCode":"A"},{"message":"b","errorCode":"B"}]';
+    const e = await apiErrorFromResponse(res(400, body));
+    expect(e.errorCode).toBe('MULTIPLE_API_ERRORS');
+    expect(e.details).toEqual(JSON.parse(body));
+  });
+
+  it('gives ERROR_HTTP_<status> with the raw body for a non-JSON body', async () => {
+    const html = '<html>' + 'x'.repeat(994);
+    const e = await apiErrorFromResponse(res(503, html, 'text/html;charset=UTF-8'));
+    expect(e.errorCode).toBe('ERROR_HTTP_503');
+    expect(e.message).toBe(html);
+  });
+
+  it('gives ERROR_HTTP_<status> for an OAuth-shaped body, which carries no message', async () => {
     const e = await apiErrorFromResponse(res(400, '{"error":"invalid_grant","error_description":"expired"}'));
-    expect(e.errorCode).toBe('invalid_grant');
-    expect(e.message).toBe('expired');
+    expect(e.errorCode).toBe('ERROR_HTTP_400');
   });
 
-  it('falls back to HTTP_<status> with truncated text for a non-JSON body', async () => {
-    const e = await apiErrorFromResponse(res(503, '<html>' + 'x'.repeat(994)));
-    expect(e.errorCode).toBe('HTTP_503');
-    expect(e.message.length).toBeLessThanOrEqual(300);
+  it('gives ERROR_HTTP_<status> for an empty body', async () => {
+    const e = await apiErrorFromResponse(res(500, '', 'text/plain'));
+    expect(e.errorCode).toBe('ERROR_HTTP_500');
   });
 
-  it('uses a stock message for an empty body', async () => {
-    const e = await apiErrorFromResponse(res(500, ''));
-    expect(e.errorCode).toBe('HTTP_500');
-    expect(e.message).toBe('Salesforce returned HTTP 500.');
+  // jsforce's own HttpApi.getError is the oracle: the Connection transport raises exactly this.
+  describe('matches jsforce getError', () => {
+    const cases: [string, number, string, string][] = [
+      ['one entry', 400, JSON_TYPE, '[{"message":"No such column","errorCode":"INVALID_FIELD"}]'],
+      ['two entries', 400, JSON_TYPE, '[{"message":"a","errorCode":"A"},{"message":"b","errorCode":"B"}]'],
+      ['an empty array', 400, JSON_TYPE, '[]'],
+      ['a bare object', 404, JSON_TYPE, '{"message":"gone","errorCode":"NOT_FOUND"}'],
+      ['a message with no errorCode', 400, JSON_TYPE, '{"message":"odd"}'],
+      ['an OAuth body', 401, JSON_TYPE, '{"error":"invalid_grant","error_description":"expired"}'],
+      ['JSON sent as text/plain', 400, 'text/plain', '[{"message":"m","errorCode":"X"}]'],
+      ['malformed JSON', 500, JSON_TYPE, '[{"message":'],
+      ['an empty body', 500, 'text/plain', ''],
+      ['html with a charset', 503, 'text/html;charset=UTF-8', '<html>down</html>'],
+      ['bare text/html', 503, 'text/html', '<html>down</html>'],
+    ];
+    it.each(cases)('for %s', async (_name, status, contentType, body) => {
+      const ours = await apiErrorFromResponse(res(status, body, contentType));
+      const theirs = await jsforceGetError(status, contentType, body);
+      expect({ errorCode: ours.errorCode, name: ours.name, message: ours.message, details: ours.details }).toEqual({
+        errorCode: theirs.errorCode,
+        name: theirs.name,
+        message: theirs.message,
+        details: theirs.data,
+      });
+    });
   });
 });
 
