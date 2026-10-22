@@ -13,9 +13,12 @@ import type { EventLogAccess } from '../context/AuditCache.js';
  * vs. grant a permission), so the distinction is worth surfacing.
  */
 export function classifyEventLogAccessError(err: unknown): EventLogAccess {
+  // Classify on errorCode only. The fetch transport keeps the HTTP status and jsforce does not, so
+  // reading statusCode would classify the same org error differently on the two transports.
   if (isApiError(err)) {
-    if (err.statusCode === 403 || /ACCESS|INSUFFICIENT/i.test(err.errorCode)) return 'no-permission';
-    if (/INVALID_TYPE|NOT_FOUND|MALFORMED_QUERY/i.test(err.errorCode) || err.statusCode === 404 || err.statusCode === 400) {
+    const code = err.errorCode;
+    if (/ACCESS|INSUFFICIENT/i.test(code) || code === 'ERROR_HTTP_403') return 'no-permission';
+    if (/INVALID_TYPE|NOT_FOUND|MALFORMED_QUERY/i.test(code) || code === 'ERROR_HTTP_404' || code === 'ERROR_HTTP_400') {
       return 'not-enabled';
     }
   }
