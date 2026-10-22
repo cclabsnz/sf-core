@@ -15,8 +15,12 @@ export class SalesforceApiError extends Error implements ApiError {
   readonly statusCode?: number;
   readonly details?: unknown;
 
-  constructor(errorCode: string, message: string, opts: { statusCode?: number; details?: unknown } = {}) {
-    super(message);
+  constructor(
+    errorCode: string,
+    message: string,
+    opts: { statusCode?: number; details?: unknown; cause?: unknown } = {}
+  ) {
+    super(message, opts.cause === undefined ? undefined : { cause: opts.cause });
     // jsforce sets name to the Salesforce error code; keep that so existing `name` readers don't change.
     this.name = errorCode;
     this.errorCode = errorCode;
@@ -43,6 +47,7 @@ See \`error.data\` for the full html response.`;
  * a body is parsed as JSON only when the content type is application/json; an array of other than
  * one entry is MULTIPLE_API_ERRORS; a body with no string `message` is ERROR_HTTP_<status> with the
  * raw body as the message; an entry with a message but no errorCode gets jsforce's 'Error'.
+ * Internal: not exported from either entry point.
  */
 export async function apiErrorFromResponse(res: {
   status: number;
@@ -81,14 +86,15 @@ export async function apiErrorFromResponse(res: {
 
 /**
  * Wraps a jsforce error (string errorCode, no statusCode) as a SalesforceApiError, so `details` and
- * a uniform class are present whichever transport raised it. Anything else passes through unchanged.
+ * a uniform class are present whichever transport raised it; the original is kept as `cause`.
+ * Anything else passes through unchanged. Internal: not exported from either entry point.
  * (isApiError alone cannot be the gate: it now accepts a statusCode-less error.)
  */
 export function normaliseApiError(err: unknown): unknown {
   if (err instanceof Error && !(err instanceof SalesforceApiError)) {
     const { errorCode, statusCode, data } = err as { errorCode?: unknown; statusCode?: unknown; data?: unknown };
     if (typeof errorCode === 'string' && statusCode === undefined) {
-      return new SalesforceApiError(errorCode, err.message, { details: data });
+      return new SalesforceApiError(errorCode, err.message, { details: data, cause: err });
     }
   }
   return err;
