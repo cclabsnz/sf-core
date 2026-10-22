@@ -25,37 +25,58 @@ export class SalesforceApiError extends Error implements ApiError {
   }
 }
 
-interface ErrorEntry {
-  errorCode?: unknown;
-  message?: unknown;
-  error?: unknown;
-  error_description?: unknown;
-}
+// Messages copied from jsforce's HttpApi.getError, so both transports raise the same text.
+const MULTIPLE_MESSAGE = `Multiple errors returned.
+  Check \`error.data\` for the error details`;
+const htmlMessage = (status: number): string => `HTTP response contains html content.
+Check that the org exists and can be reached.
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+HTTP status code: ${status}.
+REST API Status Codes and Error Responses:
+https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/errorcodes.htm
 
-/** Builds an ApiError from a non-OK Salesforce HTTP response (data API array body or OAuth object body). */
+See \`error.data\` for the full html response.`;
+
+/**
+ * Builds an ApiError from a non-OK Salesforce HTTP response, mirroring jsforce's HttpApi.getError
+ * (http-api.js) so the fetch and Connection transports raise the same errorCode, message and details:
+ * a body is parsed as JSON only when the content type is application/json; an array of other than
+ * one entry is MULTIPLE_API_ERRORS; a body with no string `message` is ERROR_HTTP_<status> with the
+ * raw body as the message; an entry with a message but no errorCode gets jsforce's 'Error'.
+ */
 export async function apiErrorFromResponse(res: {
   status: number;
+  headers: { get(name: string): string | null };
   text(): Promise<string>;
 }): Promise<SalesforceApiError> {
   const text = await res.text();
-  const fallbackCode = `HTTP_${res.status}`;
-  const fallbackMessage = text === '' ? `Salesforce returned HTTP ${res.status}.` : text.slice(0, 300);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return new SalesforceApiError(fallbackCode, fallbackMessage, { statusCode: res.status });
+  const contentType = res.headers.get('content-type') ?? '';
+  const statusCode = res.status;
+  let body: unknown = text;
+  if (/^application\/json(;|$)/.test(contentType)) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
   }
-  const entry = (Array.isArray(parsed) ? parsed[0] : parsed) as ErrorEntry | null | undefined;
-  const isObject = typeof entry === 'object' && entry !== null;
-  const code = isObject ? str(entry.errorCode) ?? str(entry.error) : undefined;
-  const message = isObject ? str(entry.message) ?? str(entry.error_description) : undefined;
-  return new SalesforceApiError(code ?? fallbackCode, message ?? `Salesforce returned HTTP ${res.status}.`, {
-    statusCode: res.status,
-    details: parsed,
-  });
+  if (Array.isArray(body)) {
+    if (body.length !== 1) {
+      return new SalesforceApiError('MULTIPLE_API_ERRORS', MULTIPLE_MESSAGE, { statusCode, details: body });
+    }
+    body = body[0];
+  }
+  const entry: { errorCode?: unknown; message: string } =
+    typeof body === 'object' && body !== null && typeof (body as { message?: unknown }).message === 'string'
+      ? (body as { errorCode?: unknown; message: string })
+      : { errorCode: `ERROR_HTTP_${statusCode}`, message: text };
+  // jsforce's HttpApiError falls back to Error's own name when the code is missing.
+  const code = typeof entry.errorCode === 'string' && entry.errorCode !== '' ? entry.errorCode : 'Error';
+  // jsforce compares the raw header, so only a bare `text/html` takes this branch.
+  if (contentType === 'text/html') {
+    return new SalesforceApiError(code, htmlMessage(statusCode), { statusCode, details: entry.message });
+  }
+  return new SalesforceApiError(code, entry.message, { statusCode, details: entry });
 }
 
 /**

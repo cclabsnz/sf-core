@@ -15,7 +15,10 @@ function setup(replies: Reply[]) {
   const fn = (async (url: string, init: any) => {
     calls.push({ url, init });
     const r = replies[Math.min(i++, replies.length - 1)];
-    return new Response(r.body ?? '{}', { status: r.status, headers: r.headers });
+    return new Response(r.body ?? '{}', {
+      status: r.status,
+      headers: { 'content-type': 'application/json;charset=UTF-8', ...r.headers },
+    });
   }) as unknown as typeof fetch;
   let authCalls = 0;
   const auth = async () => {
