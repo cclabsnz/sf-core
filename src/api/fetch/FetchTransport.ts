@@ -7,7 +7,7 @@ export interface FetchTransportOptions {
   /** API version without the leading `v`, e.g. '64.0'. Never defaulted in sf-core. */
   apiVersion: string;
   fetch?: typeof fetch;
-  /** Per-request timeout. Defaults to 120 seconds. */
+  /** Time to response headers, per request. Defaults to 120 seconds. The body then streams with no limit. */
   timeoutMs?: number;
 }
 
@@ -34,7 +34,7 @@ export class FetchTransport {
    * GETs `path`. A path starting `/services/` is used as-is (a `nextRecordsUrl`, or `/services/data/`);
    * any other path is prefixed with the versioned data root, matching RestClientImpl.
    *
-   * A timeout surfaces as the DOMException AbortSignal.timeout raises, deliberately not converted
+   * A timeout surfaces as a TimeoutError DOMException (as AbortSignal.timeout raises), deliberately not converted
    * to an ApiError: it is not a Salesforce error response and carries no errorCode.
    */
   async get(path: string, accept = 'application/json'): Promise<Response> {
@@ -91,9 +91,13 @@ export class FetchTransport {
     const rel = path.startsWith('/services/')
       ? path
       : `/services/data/v${this.apiVersion}${path.startsWith('/') ? '' : '/'}${path}`;
+    // The timer covers time to response headers only and is cleared once they arrive (or the call
+    // fails), so a large body, such as an EventLogFile, streams with no time limit.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException('The operation timed out.', 'TimeoutError')), this.timeoutMs);
     return this.fetch(`${token.instanceUrl}${rel}`, {
       headers: { Authorization: `Bearer ${token.accessToken}`, Accept: accept },
-      signal: AbortSignal.timeout(this.timeoutMs),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
   }
 }
