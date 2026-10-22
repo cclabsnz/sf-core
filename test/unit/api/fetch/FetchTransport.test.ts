@@ -83,6 +83,49 @@ describe('FetchTransport', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('shares one refreshed token across concurrent 401s', async () => {
+    let authCalls = 0;
+    const auth = async () => {
+      authCalls++;
+      return { accessToken: `tok${authCalls}`, instanceUrl: INSTANCE };
+    };
+    // The first token is expired; every later one is good.
+    const fn = (async (_url: string, init: any) =>
+      init.headers.Authorization === 'Bearer tok1'
+        ? new Response(INVALID_SESSION, { status: 401, headers: { 'content-type': 'application/json' } })
+        : new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    const transport = new FetchTransport({ auth, apiVersion: '64.0', fetch: fn });
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => transport.get(`limits/${i}`)));
+    expect(results.every((r) => r.status === 200)).toBe(true);
+    expect(authCalls).toBe(2);
+  });
+
+  it('releases the 401 response body before retrying', async () => {
+    let cancelled = false;
+    let n = 0;
+    const fn = (async () => {
+      n++;
+      if (n > 1) return new Response('{}', { status: 200 });
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new TextEncoder().encode(INVALID_SESSION));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      return new Response(body, { status: 401 });
+    }) as unknown as typeof fetch;
+    let a = 0;
+    const transport = new FetchTransport({
+      auth: async () => ({ accessToken: `tok${++a}`, instanceUrl: INSTANCE }),
+      apiVersion: '64.0',
+      fetch: fn,
+    });
+    expect((await transport.get('limits/')).status).toBe(200);
+    expect(cancelled).toBe(true);
+  });
+
   it('does not retry other statuses', async () => {
     const body = JSON.stringify([{ errorCode: 'QUERY_TIMEOUT', message: 'slow' }]);
     const { transport, calls, authCount } = setup([{ status: 400, body }]);
@@ -125,7 +168,7 @@ describe('FetchTransport timeout', () => {
         init.signal.addEventListener('abort', () => reject(init.signal.reason));
       })) as unknown as typeof fetch;
     const transport = new FetchTransport({ auth, apiVersion: '64.0', fetch: hang, timeoutMs: 20 });
-    await expect(transport.get('limits/')).rejects.toBeDefined();
+    await expect(transport.get('limits/')).rejects.toMatchObject({ name: 'TimeoutError' });
   });
 
   it('does not abort a body that streams longer than timeoutMs', async () => {
