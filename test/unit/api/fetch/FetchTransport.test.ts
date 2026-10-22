@@ -112,3 +112,36 @@ describe('FetchTransport', () => {
     await expect(bad.transport.serverDate()).rejects.toThrow(msg);
   });
 });
+
+describe('FetchTransport timeout', () => {
+  const auth = async () => ({ accessToken: 'tok', instanceUrl: INSTANCE });
+
+  it('rejects when no response headers arrive within timeoutMs', async () => {
+    const hang = ((_url: string, init: any) =>
+      new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(init.signal.reason));
+      })) as unknown as typeof fetch;
+    const transport = new FetchTransport({ auth, apiVersion: '64.0', fetch: hang, timeoutMs: 20 });
+    await expect(transport.get('limits/')).rejects.toBeDefined();
+  });
+
+  it('does not abort a body that streams longer than timeoutMs', async () => {
+    const slow = (async (_url: string, init: any) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          setTimeout(() => {
+            if (init.signal.aborted) {
+              controller.error(init.signal.reason);
+              return;
+            }
+            controller.enqueue(new TextEncoder().encode('late,data\n'));
+            controller.close();
+          }, 80);
+        },
+      });
+      return new Response(body, { status: 200 });
+    }) as unknown as typeof fetch;
+    const transport = new FetchTransport({ auth, apiVersion: '64.0', fetch: slow, timeoutMs: 20 });
+    expect(await transport.getText('/sobjects/EventLogFile/ID/LogFile')).toBe('late,data\n');
+  });
+});
