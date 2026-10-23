@@ -10,6 +10,8 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-23
+
 ### Breaking
 
 - **`ApiError.statusCode` is now optional** (`number | undefined`). jsforce keeps no HTTP status
