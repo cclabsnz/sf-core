@@ -56,10 +56,7 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== 
 /** base64url without padding, as JWS requires. */
 const b64url = (input: Buffer | string): string =>
   (typeof input === 'string' ? Buffer.from(input, 'utf8') : input)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+    .toString('base64url');
 
 const truncate = (s: string, max = 300): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
