@@ -10,6 +10,23 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+### Added
+
+- **Chunked, streaming encryption: version 2 of the `SFEB` format.** `createEncryptStream` and
+  `createDecryptStream` are Node `Transform`s that encrypt and decrypt a file of any size while
+  holding at most one chunk (64 KiB by default) in memory. Each chunk is sealed with AES-256-GCM
+  under the STREAM construction, so reordered, repeated, dropped or appended chunks, and a file
+  cut at a chunk boundary, all fail with `DecryptionError`. The header carries the scrypt
+  parameters and chunk size, both bounded before any key is derived.
+- `ENCRYPTED_PREFIX`, the 4-byte `SFEB` prefix shared by every format version.
+
+### Changed
+
+- `decryptWithPassphrase` and `createDecryptStream` read both versions; version 1 files are
+  unchanged and still readable. `isEncryptedBuffer` now also recognises version 2, and an
+  unknown version fails as "Unsupported SFEB format version N" instead of "not in recognized SFEB
+  encrypted format".
+
 ## [0.12.0] — 2026-10-23
 
 ### Breaking
