@@ -91,8 +91,9 @@ and reports it as though it never had a token to begin with. Work through, in or
 1. The trusted publisher on npmjs.com matches the table above, field for field. Environment
    blank. Workflow filename exactly `publish.yml`.
 2. The publisher is on the **package**, not the org.
-3. `npm -v` in the job log is ≥ 11.5.1. The runner's Node 22 ships npm 10.x, which has no OIDC
-   support at all, hence the explicit upgrade step.
+3. `npm -v` in the job log is ≥ 11.5.1. Node 22 ships npm 10.x, which has no OIDC support at
+   all, so the publish job pins a Node 24 release whose bundled npm is new enough, and a check
+   step fails the job if it is not.
 4. The job grants `id-token: write`. The workflow's top-level `permissions: contents: read` is a
    default; the job-level block overrides it, and the repo's read-only default workflow
    permission does not block an explicit escalation.

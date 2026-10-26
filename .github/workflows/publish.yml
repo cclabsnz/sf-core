@@ -36,9 +36,14 @@ jobs:
       # NOTE: no `registry-url` — it makes setup-node write an .npmrc with a
       # placeholder _authToken, which blocks npm's OIDC trusted-publishing exchange
       # (results in E404 on publish). Omitting it lets `npm publish` do the OIDC flow.
+      #
+      # Trusted Publishing (OIDC) needs npm >= 11.5.1. Node 22 ships npm 10.x, so this job runs
+      # on an exact Node 24 release whose bundled npm (11.19.1) is new enough. That replaces a
+      # global `npm install -g npm@<version>`, which Scorecard flags as unpinned and which ran
+      # inside the job that holds the OIDC token. Bumping Node here is how npm gets bumped.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: pnpm
 
       - name: Install (frozen lockfile)
@@ -50,17 +55,13 @@ jobs:
       - name: Test
         run: pnpm test
 
-      # Trusted Publishing (OIDC) needs a recent npm CLI (>= 11.5.1); the runner's Node 22
-      # ships 10.x, so npm is upgraded here.
-      #
-      # Pinned, not `@latest`. This step runs in the job that holds the OIDC token, so an
-      # unpinned global install hands whatever npm published in the last hour a credential
-      # that can publish this package.
-      - name: Upgrade npm (>= 11.5.1 required for OIDC trusted publishing)
+      # Fails fast if a Node bump ever brings an npm too old for OIDC, instead of a
+      # misleading E404 from the publish step.
+      - name: Check npm supports OIDC trusted publishing (>= 11.5.1)
         run: |
-          npm install -g npm@12.0.2
           echo "node: $(node -v)"
           echo "npm:  $(npm -v)  (path: $(which npm))"
+          node -e 'const [a,b,c]=process.argv[1].split(".").map(Number); process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)' "$(npm -v)"
 
       - name: Publish to npm with provenance (OIDC trusted publishing)
         run: |
