@@ -21,7 +21,7 @@ import { codepointCompare } from '../lib/order.js';
 // its rule code, the offending id and a fix, so an operator repairs a graph in one pass. Stopping
 // at the first error would report one problem per run against documents that routinely carry
 // thousands of nodes.
-// nosemgrep: javascript.ajv.security.audit.ajv-allerrors-true
+// nosemgrep: javascript.ajv.security.audit.ajv-allerrors-true.ajv-allerrors-true
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validateShape = ajv.compile(GRAPH_SCHEMA);
 
