@@ -94,10 +94,14 @@ export { secureFs, SECURE_DIR_MODE, SECURE_FILE_MODE } from './fs/secureFs.js';
 // --- Encryption at rest ---
 export {
   ENCRYPTED_MAGIC,
+  ENCRYPTED_PREFIX,
   DecryptionError,
   isEncryptedBuffer,
   encryptWithPassphrase,
   decryptWithPassphrase,
+  createEncryptStream,
+  createDecryptStream,
+  type EncryptStreamOptions,
 } from './crypto/bundleCrypto.js';
 
 // --- Findings (generic) ---
