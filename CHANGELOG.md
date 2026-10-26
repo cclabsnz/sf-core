@@ -17,7 +17,8 @@ CycloneDX SBOM for the build.
   holding at most one chunk (64 KiB by default) in memory. Each chunk is sealed with AES-256-GCM
   under the STREAM construction, so reordered, repeated, dropped or appended chunks, and a file
   cut at a chunk boundary, all fail with `DecryptionError`. The header carries the scrypt
-  parameters and chunk size, both bounded before any key is derived.
+  parameters and chunk size, both bounded before any key is derived. A stream refuses a version 1
+  input over 64 MiB rather than buffering it whole.
 - `ENCRYPTED_PREFIX`, the 4-byte `SFEB` prefix shared by every format version.
 
 ### Changed
@@ -26,6 +27,11 @@ CycloneDX SBOM for the build.
   unchanged and still readable. `isEncryptedBuffer` now also recognises version 2, and an
   unknown version fails as "Unsupported SFEB format version N" instead of "not in recognized SFEB
   encrypted format".
+- **A header's scrypt settings are bounded together, not only one by one**, for both versions:
+  at most 256 MiB of memory (128·N·r) and four times the default's work (N·r·p). Settings that
+  passed each per-field limit could still demand about 12 s of blocking work or more than 1 GiB
+  per file. A key-derivation failure is now a `DecryptionError`, never a `RangeError`. Files
+  written with the defaults are unaffected.
 
 ## [0.12.0] — 2026-10-23
 

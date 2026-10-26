@@ -56,6 +56,39 @@ describe('streaming encryption (format version 2)', () => {
     expect(decryptWithPassphrase(await encrypt(data), passphrase).equals(data)).toBe(true);
   });
 
+  it.each([3 * CHUNK, 3 * CHUNK + 1])('decryptWithPassphrase reads a %i-byte version 2 file in memory', async (size) => {
+    const data = randomBytes(size);
+    expect(decryptWithPassphrase(await encrypt(data), passphrase).equals(data)).toBe(true);
+  });
+
+  it('refuses a version 1 input larger than a version 1 file can be, instead of buffering it', async () => {
+    const t = createDecryptStream(passphrase);
+    const head = encryptWithPassphrase('x', passphrase).subarray(0, 52);
+    const done = new Promise((_, reject) => {
+      t.on('error', reject);
+    });
+    t.resume();
+    t.write(head);
+    const piece = Buffer.alloc(1024 * 1024);
+    for (let i = 0; i < 70 && !t.destroyed; i++) t.write(piece);
+    await expect(done).rejects.toThrow(/too large/);
+  });
+
+  it('pushes a header copy, so a consumer that edits its output cannot corrupt later chunks', async () => {
+    const t = createEncryptStream(passphrase, { chunkSize: CHUNK });
+    const out: Buffer[] = [];
+    t.on('data', (c: Buffer) => {
+      out.push(Buffer.from(c));
+      c.fill(0);
+    });
+    const data = randomBytes(3 * CHUNK);
+    t.end(data);
+    await new Promise((r) => {
+      t.on('end', r);
+    });
+    expect((await decrypt(Buffer.concat(out))).equals(data)).toBe(true);
+  });
+
   it('can still read version 1 files in a stream', async () => {
     const data = Buffer.from('a version 1 file');
     expect((await decrypt(encryptWithPassphrase(data, passphrase))).equals(data)).toBe(true);
@@ -175,6 +208,13 @@ describe('streaming encryption (format version 2)', () => {
       expect(Buffer.concat(out).length).toBeLessThanOrEqual(2 * CHUNK);
     });
 
+    it('a rewritten chunk size, which no key or nonce depends on', async () => {
+      const enc = await encrypt(Buffer.from('one short chunk'));
+      enc[8] += 1; // still one segment under either size: only the header AAD notices
+      await expect(decrypt(enc)).rejects.toThrow(DecryptionError);
+      expect(() => decryptWithPassphrase(enc, passphrase)).toThrow(DecryptionError);
+    });
+
     it('in memory too: decryptWithPassphrase refuses a truncated version 2 file', async () => {
       const enc = await encrypt(data);
       expect(() => decryptWithPassphrase(enc.subarray(0, HEADER + SEGMENT), passphrase)).toThrow(DecryptionError);
@@ -194,6 +234,19 @@ describe('streaming encryption (format version 2)', () => {
   });
 
   describe('header limits, checked before scrypt runs', () => {
+    it('refuses a costly scrypt combination even when each parameter is in range', async () => {
+      const enc = await encrypt(Buffer.from('x'));
+      [enc[5], enc[6], enc[7]] = [17, 8, 16]; // 128 MiB, under the memory cap, but ~21x the default work
+      const t = Date.now();
+      await expect(decrypt(enc)).rejects.toThrow(/outside the accepted range/);
+      expect(Date.now() - t).toBeLessThan(1000);
+    });
+
+    it('refuses scrypt memory beyond the cap as a DecryptionError, not a RangeError', async () => {
+      const enc = await encrypt(Buffer.from('x'));
+      [enc[5], enc[6], enc[7]] = [20, 16, 1];
+      await expect(decrypt(enc)).rejects.toThrow(DecryptionError);
+    });
     it('refuses key-derivation parameters outside the accepted range', async () => {
       const enc = await encrypt(Buffer.from('x'));
       enc[5] = 30; // log2(N) = 30 would ask for terabytes

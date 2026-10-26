@@ -31,6 +31,13 @@ const DEFAULT_KDF = { log2N: 15, r: 8, p: 3 } as const;
 /** Bounds accepted when reading a header, so a crafted file cannot demand unbounded memory or time. */
 const KDF_LIMITS = { log2N: [14, 20], r: [1, 16], p: [1, 16] } as const;
 const MAX_KDF_MEMORY = 1024 * 1024 * 1024;
+/**
+ * Each field in range can still combine into seconds of blocking work or a gigabyte, per file. A
+ * header must also keep scrypt's memory (128·N·r) to 256 MiB and its work (N·r·p) to four times the
+ * default's.
+ */
+const MAX_HEADER_KDF_MEMORY = 256 * 1024 * 1024;
+const MAX_HEADER_KDF_COST = 4 * 2 ** DEFAULT_KDF.log2N * DEFAULT_KDF.r * DEFAULT_KDF.p;
 
 const SALT_LEN = 16;
 const IV_LEN = 12;
@@ -45,6 +52,8 @@ const V2_MIN_LEN = V2_HEADER_LEN + TAG_LEN; // an empty file still has one (empt
 const CHUNK_LOG2_LIMITS = [10, 24] as const;
 const DEFAULT_CHUNK_LOG2 = 16; // 64 KiB
 const MAX_CHUNKS = 2 ** 32; // the chunk index is a 4-byte field
+/** A version 1 file is sealed whole in memory, so a stream refuses one larger than this. */
+const MAX_V1_STREAM_BYTES = 64 * 1024 * 1024;
 
 export class DecryptionError extends Error {
   constructor(message = 'Failed to decrypt data: invalid passphrase or corrupted payload') {
@@ -69,7 +78,11 @@ const within = (v: number, [lo, hi]: readonly [number, number]) => v >= lo && v 
 /** Reads log2(N), r, p at `o` and refuses values that would demand unbounded memory or time. */
 function readKdf(buf: Buffer, o: number): { log2N: number; r: number; p: number } {
   const [log2N, r, p] = [buf[o], buf[o + 1], buf[o + 2]];
-  if (!within(log2N, KDF_LIMITS.log2N) || !within(r, KDF_LIMITS.r) || !within(p, KDF_LIMITS.p)) {
+  const N = 2 ** log2N;
+  if (
+    !within(log2N, KDF_LIMITS.log2N) || !within(r, KDF_LIMITS.r) || !within(p, KDF_LIMITS.p) ||
+    128 * N * r > MAX_HEADER_KDF_MEMORY || N * r * p > MAX_HEADER_KDF_COST
+  ) {
     throw new DecryptionError('Encrypted header carries key-derivation parameters outside the accepted range');
   }
   return { log2N, r, p };
@@ -155,7 +168,13 @@ function openV2Header(header: Buffer, passphrase: string): V2Header {
   }
   const salt = header.subarray(o, (o += SALT_LEN));
   const noncePrefix = header.subarray(o, (o += NONCE_PREFIX_LEN));
-  return { header, key: deriveKey(passphrase, salt, log2N, r, p), noncePrefix, chunkSize: 2 ** chunkLog2 };
+  let key: Buffer;
+  try {
+    key = deriveKey(passphrase, salt, log2N, r, p);
+  } catch {
+    throw new DecryptionError('Encrypted header carries key-derivation parameters outside the accepted range');
+  }
+  return { header, key, noncePrefix, chunkSize: 2 ** chunkLog2 };
 }
 
 function chunkNonce(prefix: Buffer, index: number, last: boolean): Buffer {
@@ -197,6 +216,46 @@ function decryptV2(encrypted: Buffer, passphrase: string): Buffer {
   return Buffer.concat(out);
 }
 
+/** Pending bytes as a list of pieces, so many small writes are not re-copied on every write. */
+class ByteQueue {
+  private pieces: Buffer[] = [];
+  length = 0;
+
+  push(b: Buffer): void {
+    if (b.length === 0) return;
+    this.pieces.push(b);
+    this.length += b.length;
+  }
+
+  /** Removes and returns the first `n` bytes (n <= length), copying only when they span pieces. */
+  take(n: number): Buffer {
+    const parts: Buffer[] = [];
+    let need = n;
+    while (need > 0) {
+      const head = this.pieces[0];
+      if (head.length <= need) {
+        parts.push(head);
+        this.pieces.shift();
+        need -= head.length;
+      } else {
+        parts.push(head.subarray(0, need));
+        this.pieces[0] = head.subarray(need);
+        need = 0;
+      }
+    }
+    this.length -= n;
+    return parts.length === 1 ? parts[0] : Buffer.concat(parts, n);
+  }
+
+  /** The first `n` bytes without removing them. */
+  peek(n: number): Buffer {
+    const out = this.take(n);
+    this.pieces.unshift(out);
+    this.length += n;
+    return out;
+  }
+}
+
 export type EncryptStreamOptions = {
   /** Plaintext bytes per chunk: a power of two from 1 KiB to 16 MiB. Defaults to 64 KiB. */
   chunkSize?: number;
@@ -217,22 +276,22 @@ export function createEncryptStream(passphrase: string, options: EncryptStreamOp
   const salt = randomBytes(SALT_LEN);
   const header = Buffer.concat([ENCRYPTED_PREFIX, Buffer.from([2, log2N, r, p, chunkLog2]), salt, randomBytes(NONCE_PREFIX_LEN)]);
   const h = openV2Header(header, passphrase);
-  let pending: Buffer = Buffer.alloc(0);
+  const pending = new ByteQueue();
   let index = 0;
   let started = false;
+  // A copy: the pushed buffer belongs to the consumer, and `header` is every chunk's AAD.
+  const pushHeader = (t: Transform) => {
+    if (!started) t.push(Buffer.from(header));
+    started = true;
+  };
 
   return new Transform({
     transform(chunk: Buffer, _enc, done: TransformCallback) {
       try {
-        if (!started) {
-          this.push(header);
-          started = true;
-        }
-        pending = pending.length ? Buffer.concat([pending, chunk]) : chunk;
+        pushHeader(this);
+        pending.push(chunk);
         // Hold back the last full chunk: only the end of input says which chunk is last.
-        let o = 0;
-        for (; pending.length - o > chunkSize; o += chunkSize) this.push(sealChunk(h, index++, false, pending.subarray(o, o + chunkSize)));
-        pending = pending.subarray(o);
+        while (pending.length > chunkSize) this.push(sealChunk(h, index++, false, pending.take(chunkSize)));
         done();
       } catch (err) {
         done(err as Error);
@@ -240,8 +299,8 @@ export function createEncryptStream(passphrase: string, options: EncryptStreamOp
     },
     flush(done: TransformCallback) {
       try {
-        if (!started) this.push(header);
-        this.push(sealChunk(h, index, true, pending));
+        pushHeader(this);
+        this.push(sealChunk(h, index, true, pending.take(pending.length)));
         done();
       } catch (err) {
         done(err as Error);
@@ -258,7 +317,7 @@ export function createEncryptStream(passphrase: string, options: EncryptStreamOp
  */
 export function createDecryptStream(passphrase: string): Transform {
   requirePassphrase(passphrase);
-  let pending: Buffer = Buffer.alloc(0);
+  const pending = new ByteQueue();
   let version = 0;
   let h: V2Header | undefined;
   let index = 0;
@@ -266,22 +325,23 @@ export function createDecryptStream(passphrase: string): Transform {
   return new Transform({
     transform(chunk: Buffer, _enc, done: TransformCallback) {
       try {
-        pending = pending.length ? Buffer.concat([pending, chunk]) : chunk;
+        pending.push(chunk);
         if (version === 0 && pending.length > ENCRYPTED_PREFIX.length) {
-          if (!hasPrefix(pending)) throw new DecryptionError('Buffer is not in recognized SFEB encrypted format');
-          version = pending[ENCRYPTED_PREFIX.length];
+          const head = pending.peek(ENCRYPTED_PREFIX.length + 1);
+          if (!hasPrefix(head)) throw new DecryptionError('Buffer is not in recognized SFEB encrypted format');
+          version = head[ENCRYPTED_PREFIX.length];
           checkVersion(version);
+        }
+        if (version === 1 && pending.length > MAX_V1_STREAM_BYTES) {
+          throw new DecryptionError('Version 1 encrypted data is too large to read as a stream');
         }
         if (version !== 2) return done();
         if (!h) {
           if (pending.length < V2_HEADER_LEN) return done();
-          h = openV2Header(Buffer.from(pending.subarray(0, V2_HEADER_LEN)), passphrase);
-          pending = pending.subarray(V2_HEADER_LEN);
+          h = openV2Header(Buffer.from(pending.take(V2_HEADER_LEN)), passphrase);
         }
         const segment = h.chunkSize + TAG_LEN;
-        let o = 0;
-        for (; pending.length - o > segment; o += segment) this.push(openChunk(h, index++, false, pending.subarray(o, o + segment)));
-        pending = pending.subarray(o);
+        while (pending.length > segment) this.push(openChunk(h, index++, false, pending.take(segment)));
         done();
       } catch (err) {
         done(err as Error);
@@ -291,10 +351,10 @@ export function createDecryptStream(passphrase: string): Transform {
       try {
         if (version === 0) throw new DecryptionError('Buffer is not in recognized SFEB encrypted format');
         if (version === 1) {
-          this.push(decryptWithPassphrase(pending, passphrase));
+          this.push(decryptWithPassphrase(pending.take(pending.length), passphrase));
         } else {
           if (!h) throw new DecryptionError('Encrypted data is truncated');
-          this.push(openChunk(h, index, true, pending));
+          this.push(openChunk(h, index, true, pending.take(pending.length)));
         }
         done();
       } catch (err) {
