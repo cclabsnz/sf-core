@@ -39,6 +39,7 @@ export function resolveS3Endpoint(env: NodeJS.ProcessEnv): S3Endpoint {
     if (!region) {
       throw new Error('Set AWS_REGION (for AWS S3) or AWS_ENDPOINT_URL_S3 (for R2 or another S3-compatible service).');
     }
+    if (!/^[a-z0-9-]+$/.test(region)) throw new Error('AWS_REGION is not a valid region name.');
     return { endpoint: `https://s3.${region}.amazonaws.com`, region, custom: false };
   }
   let url: URL;
@@ -47,6 +48,7 @@ export function resolveS3Endpoint(env: NodeJS.ProcessEnv): S3Endpoint {
   } catch {
     throw new Error(`The S3 endpoint is not a valid URL: ${custom}`);
   }
+  if (url.username || url.password) throw new Error('The S3 endpoint must not contain credentials.');
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && LOOPBACK.has(url.hostname))) {
     throw new Error(`The S3 endpoint must use https (http is allowed only for localhost): ${custom}`);
   }

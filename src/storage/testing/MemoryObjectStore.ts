@@ -29,7 +29,8 @@ export class MemoryObjectStore implements ObjectStore {
 
   async get(key: string): Promise<Buffer | null> {
     this.check();
-    return this.objects.get(key) ?? null;
+    const b = this.objects.get(key);
+    return b ? Buffer.from(b) : null;
   }
 
   async put(key: string, bytes: Buffer, _contentType: string): Promise<void> {

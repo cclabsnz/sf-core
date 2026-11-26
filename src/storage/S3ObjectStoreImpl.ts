@@ -55,8 +55,10 @@ function toStorageError(err: unknown, bucket: string): Error {
   if (e.name === 'AccessDenied' || statusOf(e) === 403) {
     return new StorageAccessDeniedError(bucket, `Access denied to bucket "${bucket}": ${message}`);
   }
-  const out = new Error(message);
+  const out: Error & { status?: number } = new Error(message);
   if (e.name) out.name = e.name;
+  const status = statusOf(e);
+  if (typeof status === 'number') out.status = status;
   return out;
 }
 
@@ -67,7 +69,15 @@ export async function createS3ObjectStore(
 ): Promise<ObjectStore> {
   // One dynamic import serves both the client constructor and the Command classes, so the SDK
   // (an optional peer) is only loaded when a store is actually created.
-  const sdk = await import('@aws-sdk/client-s3');
+  let sdk: typeof import('@aws-sdk/client-s3');
+  try {
+    sdk = await import('@aws-sdk/client-s3');
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ERR_MODULE_NOT_FOUND') {
+      throw new Error('Install @aws-sdk/client-s3 (an optional peer dependency of @cclabsnz/sf-core) to use S3 storage.');
+    }
+    throw err;
+  }
   const client = opts.client ?? new sdk.S3Client(s3ClientConfig(ep));
   const send = (cmd: unknown): Promise<unknown> =>
     (client as { send(cmd: unknown): Promise<unknown> }).send(cmd);

@@ -62,6 +62,16 @@ describe('resolveS3Endpoint', () => {
     }
   });
 
+  it('rejects credentials in the endpoint without echoing them', () => {
+    const call = () => resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'https://user:hunter2@x.example.com' });
+    expect(call).toThrow(/must not contain credentials/);
+    expect(call).not.toThrow(/hunter2/);
+  });
+
+  it('rejects a malformed region', () => {
+    expect(() => resolveS3Endpoint({ AWS_REGION: 'evil.com/x' })).toThrow(/region/i);
+  });
+
   it('rejects an unparseable endpoint', () => {
     expect(() => resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'not a url' })).toThrow();
   });

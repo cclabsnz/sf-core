@@ -8,6 +8,8 @@ Each released entry mirrors the [GitHub Release](https://github.com/cclabsnz/sf-
 for that tag, which is the canonical published note and carries the provenance attestation and
 CycloneDX SBOM for the build.
 
+## [Unreleased]
+
 ## [0.13.0] — 2026-11-27
 
 ### Added
@@ -338,7 +340,8 @@ hourly capture path that dependants build on.
 
 Initial internal releases: API clients, org context, findings model and report rendering.
 
-[Unreleased]: https://github.com/cclabsnz/sf-core/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/cclabsnz/sf-core/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.13.0
 [0.4.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.2.0

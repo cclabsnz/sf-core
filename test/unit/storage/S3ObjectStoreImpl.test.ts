@@ -45,6 +45,21 @@ describe('S3ObjectStoreImpl', () => {
     }
   });
 
+  it('get maps NoSuchBucket to BucketMissingError but any other 404 to null', async () => {
+    const missing = await createS3ObjectStore('bkt', EP, { client: fake(() => { throw awsError('NoSuchBucket', 404); }).client });
+    await expect(missing.get('k')).rejects.toBeInstanceOf(BucketMissingError);
+    const other = await createS3ObjectStore('bkt', EP, { client: fake(() => { throw awsError('X', 404); }).client });
+    expect(await other.get('k')).toBeNull();
+  });
+
+  it('putIfAbsent rethrows a 409 ConditionalRequestConflict with its status', async () => {
+    const store = await createS3ObjectStore('bkt', EP, { client: fake(() => { throw awsError('ConditionalRequestConflict', 409); }).client });
+    const err = await store.putIfAbsent('k', Buffer.from('x'), 'a/b').catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('ConditionalRequestConflict');
+    expect(err.status).toBe(409);
+  });
+
   it('put sends PutObjectCommand', async () => {
     const f = fake(() => ({}));
     const store = await createS3ObjectStore('bkt', EP, { client: f.client });
