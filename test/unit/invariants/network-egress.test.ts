@@ -8,8 +8,8 @@ import {
 /**
  * Network-egress invariant guard for @cclabsnz/sf-core.
  *
- * The stated promise is local-first: the only network destination is the Salesforce org
- * the operator authenticated against. No telemetry, no analytics, no LLM calls — and no
+ * The stated promise is local-first: the only network destinations are the Salesforce org
+ * the operator authenticated against, or an object-storage endpoint the caller passes explicitly. No telemetry, no analytics, no LLM calls — and no
  * remote assets in generated reports, which carry sensitive findings and are routinely
  * opened offline or on locked-down analyst machines.
  *
@@ -26,8 +26,8 @@ describe('network-egress invariant (core)', () => {
       throw new Error(
         'Network-egress invariant violated — the following would contact a third party:\n' +
           formatViolations(violations) +
-          '\n\nThese tools are local-first: the only permitted destination is the org the ' +
-          'operator authenticated against, and generated reports must be fully self-contained. ' +
+          '\n\nThese tools are local-first: the only permitted destinations are the org the ' +
+          'operator authenticated against or an object-storage endpoint the caller passes explicitly, and generated reports must be fully self-contained. ' +
           'If this is a false positive, add an `// invariant:allow` comment on the line after review.',
       );
     }

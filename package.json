@@ -15,6 +15,14 @@
       "types": "./lib/fetch.d.ts",
       "default": "./lib/fetch.js"
     },
+    "./storage": {
+      "types": "./lib/storage.d.ts",
+      "default": "./lib/storage.js"
+    },
+    "./storage/testing": {
+      "types": "./lib/storageTesting.d.ts",
+      "default": "./lib/storageTesting.js"
+    },
     "./testing": {
       "types": "./lib/testing/invariants.d.ts",
       "default": "./lib/testing/invariants.js"
@@ -31,6 +39,7 @@
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "3.1168.0",
     "@jest/globals": "^29.7.0",
     "@jsforce/jsforce-node": "3.10.19",
     "@salesforce/core": "^9",
@@ -85,10 +94,14 @@
     }
   },
   "peerDependencies": {
-    "@salesforce/core": "^8 || ^9"
+    "@salesforce/core": "^8 || ^9",
+    "@aws-sdk/client-s3": ">=3.1168.0 <4"
   },
   "peerDependenciesMeta": {
     "@salesforce/core": {
+      "optional": true
+    },
+    "@aws-sdk/client-s3": {
       "optional": true
     }
   },

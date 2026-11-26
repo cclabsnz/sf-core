@@ -21,6 +21,7 @@ contracts behind [`@cclabsnz/sf-audit`](https://www.npmjs.com/package/@cclabsnz/
 
 | Area | What it provides |
 | --- | --- |
+| **Storage** | `ObjectStore`, an S3-compatible connection (AWS S3, Cloudflare R2, MinIO) from `@cclabsnz/sf-core/storage`, with `MemoryObjectStore` in `@cclabsnz/sf-core/storage/testing`. `@aws-sdk/client-s3` is an optional peer, loaded only when a store is created |
 | **API clients** | `SoqlClient`, `ToolingClient`, `RestClient`, `MetadataClient`: read-only wrappers over a `@salesforce/core` `Connection`, or, via `@cclabsnz/sf-core/fetch`, over plain `fetch` with a JWT bearer login (no `@salesforce/core`; `MetadataClient` is Connection-only) |
 | **Platform behaviour** | `FlowRepository`, `ApexRepository`, `isSalesforceId`, `describeSalesforceError`, `mapWithConcurrency` |
 | **Event capture** | `EventBaselineStore`, `RTE_CATALOG`, `pullEventLogs`, `pullRealtimeEvents`, `CaptureManifest`: bounded, resumable EventLogFile and Real-Time Event pulls |
@@ -129,8 +130,8 @@ Both are enforced as tests, not asserted in prose. Run them yourself with `pnpm 
   appear in source. The one exception is the OAuth token `POST` in the fetch login, which
   writes no org data and is confined to one file by a test. Every org request is a SOQL query, a REST **GET**, or a Metadata read.
 - **Local-first.** No third-party HTTP client, telemetry endpoint, LLM call, websocket, or
-  remote asset in a generated report. The only network destination is the org the operator
-  authenticated against.
+  remote asset in a generated report. The only network destinations are the org the operator
+  authenticated against, or an object-storage endpoint the caller passes explicitly.
 
 ## Versioning
 
