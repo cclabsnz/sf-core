@@ -46,11 +46,11 @@ export function resolveS3Endpoint(env: NodeJS.ProcessEnv): S3Endpoint {
   try {
     url = new URL(custom);
   } catch {
-    throw new Error(`The S3 endpoint is not a valid URL: ${custom}`);
+    throw new Error('The S3 endpoint (AWS_ENDPOINT_URL_S3 or AWS_ENDPOINT_URL) is not a valid URL.');
   }
   if (url.username || url.password) throw new Error('The S3 endpoint must not contain credentials.');
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && LOOPBACK.has(url.hostname))) {
-    throw new Error(`The S3 endpoint must use https (http is allowed only for localhost): ${custom}`);
+    throw new Error('The S3 endpoint (AWS_ENDPOINT_URL_S3 or AWS_ENDPOINT_URL) must use https; http is allowed only for localhost.');
   }
   return { endpoint: custom, region: region ?? 'auto', custom: true };
 }

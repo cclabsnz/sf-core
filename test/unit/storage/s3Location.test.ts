@@ -68,6 +68,12 @@ describe('resolveS3Endpoint', () => {
     expect(call).not.toThrow(/hunter2/);
   });
 
+  it('does not echo a scheme-less credential in the error', () => {
+    const call = () => resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'user:secret@host' });
+    expect(call).toThrow(/https/);
+    expect(call).not.toThrow(/secret/);
+  });
+
   it('rejects a malformed region', () => {
     expect(() => resolveS3Endpoint({ AWS_REGION: 'evil.com/x' })).toThrow(/region/i);
   });
