@@ -8,10 +8,16 @@ Each released entry mirrors the [GitHub Release](https://github.com/cclabsnz/sf-
 for that tag, which is the canonical published note and carries the provenance attestation and
 CycloneDX SBOM for the build.
 
-## [Unreleased]
+## [0.13.0] — 2026-11-27
 
 ### Added
 
+- **`@cclabsnz/sf-core/storage`: an S3-compatible `ObjectStore`.** `createS3ObjectStore` connects to
+  AWS S3, Cloudflare R2 or MinIO with whole-object `get`, `put`, create-only `putIfAbsent`
+  (`If-None-Match: *`) and paged `list`. `resolveS3Endpoint`, `parseS3Uri`, `BucketMissingError`
+  and `StorageAccessDeniedError` come with it, and credential values are redacted from every
+  error it raises. `@aws-sdk/client-s3` is an optional peer, loaded only when a store is created.
+  `@cclabsnz/sf-core/storage/testing` exports `MemoryObjectStore` for tests.
 - **Chunked, streaming encryption: version 2 of the `SFEB` format.** `createEncryptStream` and
   `createDecryptStream` are Node `Transform`s that encrypt and decrypt a file of any size while
   holding at most one chunk (64 KiB by default) in memory. Each chunk is sealed with AES-256-GCM
