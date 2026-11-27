@@ -59,9 +59,14 @@ export function resolveS3Endpoint(env: NodeJS.ProcessEnv): S3Endpoint {
  * The host the S3 client actually contacts for `bucket`, for naming network destinations truthfully.
  * A custom endpoint (R2, MinIO...) is used path-style, so the host is the endpoint's own host.
  * AWS S3 is used virtual-hosted style, so the bucket is part of the host:
- * `<bucket>.s3.<region>.amazonaws.com`.
+ * `<bucket>.s3.<region>.amazonaws.com`. The SDK falls back to path style, and so to
+ * `s3.<region>.amazonaws.com`, for a bucket name that cannot be a single DNS label over https
+ * (one with a dot, upper case or an underscore), and this mirrors that rule.
  */
 export function s3Host(bucket: string, ep: S3Endpoint): string {
   if (ep.custom) return new URL(ep.endpoint).host;
-  return `${bucket}.s3.${ep.region}.amazonaws.com`;
+  return VIRTUAL_HOSTABLE.test(bucket) ? `${bucket}.s3.${ep.region}.amazonaws.com` : `s3.${ep.region}.amazonaws.com`;
 }
+
+/** The AWS SDK's isVirtualHostableS3Bucket without sub-domains: 3-63 lower-case letters, digits and inner hyphens. */
+const VIRTUAL_HOSTABLE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;

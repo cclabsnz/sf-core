@@ -89,6 +89,11 @@ describe('s3Host', () => {
     expect(s3Host('mybucket', ep)).toBe('mybucket.s3.ap-southeast-2.amazonaws.com');
   });
 
+  it('names the path-style AWS host for a bucket that is not one DNS label, as the SDK does', () => {
+    const ep = resolveS3Endpoint({ AWS_REGION: 'us-east-1' });
+    for (const b of ['my.bucket', 'My-Bucket', 'my_bucket']) expect(s3Host(b, ep)).toBe('s3.us-east-1.amazonaws.com');
+  });
+
   it('names the custom endpoint host (path style), port included', () => {
     expect(s3Host('b', resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'https://acct.r2.cloudflarestorage.com' }))).toBe(
       'acct.r2.cloudflarestorage.com',
