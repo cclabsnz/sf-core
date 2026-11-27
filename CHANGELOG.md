@@ -21,7 +21,8 @@ CycloneDX SBOM for the build.
   error it raises. `@aws-sdk/client-s3` is an optional peer, loaded only when a store is created.
   `@cclabsnz/sf-core/storage/testing` exports `MemoryObjectStore` for tests.
   `s3Host(bucket, endpoint)` names the host the client actually contacts (`<bucket>.s3.<region>.amazonaws.com`
-  for AWS, the endpoint's host for a custom endpoint), so tools can list network destinations truthfully.
+  for AWS, or path-style `s3.<region>.amazonaws.com` for bucket names that are not one DNS label;
+  the endpoint's host for a custom endpoint), so tools can list network destinations truthfully.
   Redaction covers credential values set in the environment (`AWS_ACCESS_KEY_ID`,
   `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) only.
 - **Chunked, streaming encryption: version 2 of the `SFEB` format.** `createEncryptStream` and
