@@ -10,8 +10,21 @@ CycloneDX SBOM for the build.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-27
+
 ### Added
 
+- **`@cclabsnz/sf-core/storage`: an S3-compatible `ObjectStore`.** `createS3ObjectStore` connects to
+  AWS S3, Cloudflare R2 or MinIO with whole-object `get`, `put`, create-only `putIfAbsent`
+  (`If-None-Match: *`) and paged `list`. `resolveS3Endpoint`, `parseS3Uri`, `BucketMissingError`
+  and `StorageAccessDeniedError` come with it, and credential values are redacted from every
+  error it raises. `@aws-sdk/client-s3` is an optional peer, loaded only when a store is created.
+  `@cclabsnz/sf-core/storage/testing` exports `MemoryObjectStore` for tests.
+  `s3Host(bucket, endpoint)` names the host the client actually contacts (`<bucket>.s3.<region>.amazonaws.com`
+  for AWS, or path-style `s3.<region>.amazonaws.com` for bucket names that are not one DNS label;
+  the endpoint's host for a custom endpoint), so tools can list network destinations truthfully.
+  Redaction covers credential values set in the environment (`AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) only.
 - **Chunked, streaming encryption: version 2 of the `SFEB` format.** `createEncryptStream` and
   `createDecryptStream` are Node `Transform`s that encrypt and decrypt a file of any size while
   holding at most one chunk (64 KiB by default) in memory. Each chunk is sealed with AES-256-GCM
@@ -332,7 +345,8 @@ hourly capture path that dependants build on.
 
 Initial internal releases: API clients, org context, findings model and report rendering.
 
-[Unreleased]: https://github.com/cclabsnz/sf-core/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/cclabsnz/sf-core/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.13.0
 [0.4.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cclabsnz/sf-core/releases/tag/v0.2.0

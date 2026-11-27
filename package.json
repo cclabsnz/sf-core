@@ -1,6 +1,6 @@
 {
   "name": "@cclabsnz/sf-core",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Shared platform layer for CloudCounsel Salesforce sf plugins — API clients, org context, event log pull, report shell, and versioned IR schemas.",
   "license": "Apache-2.0",
   "type": "module",
@@ -14,6 +14,14 @@
     "./fetch": {
       "types": "./lib/fetch.d.ts",
       "default": "./lib/fetch.js"
+    },
+    "./storage": {
+      "types": "./lib/storage.d.ts",
+      "default": "./lib/storage.js"
+    },
+    "./storage/testing": {
+      "types": "./lib/storageTesting.d.ts",
+      "default": "./lib/storageTesting.js"
     },
     "./testing": {
       "types": "./lib/testing/invariants.d.ts",
@@ -31,6 +39,7 @@
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "3.1168.0",
     "@jest/globals": "^29.7.0",
     "@jsforce/jsforce-node": "3.10.19",
     "@salesforce/core": "^9",
@@ -85,10 +94,14 @@
     }
   },
   "peerDependencies": {
-    "@salesforce/core": "^8 || ^9"
+    "@salesforce/core": "^8 || ^9",
+    "@aws-sdk/client-s3": ">=3.1168.0 <4"
   },
   "peerDependenciesMeta": {
     "@salesforce/core": {
+      "optional": true
+    },
+    "@aws-sdk/client-s3": {
       "optional": true
     }
   },
