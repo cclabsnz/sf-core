@@ -20,7 +20,14 @@ export function s3ClientConfig(ep: S3Endpoint): Record<string, unknown> {
 
 const SECRET_ENV = ['AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_ACCESS_KEY_ID'] as const;
 
-/** Replace any credential value found in the environment with [redacted]. */
+/**
+ * Replace any credential value found in the environment with [redacted].
+ *
+ * Scope: only the values of AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN as set in
+ * process.env (values shorter than 4 characters are left alone). Credentials the SDK resolves from
+ * other sources (shared ini files, SSO, process, web-identity or instance-metadata providers) are not
+ * known here and are not redacted; neither is anything else in the message.
+ */
 function redact(text: string): string {
   let out = text;
   for (const name of SECRET_ENV) {

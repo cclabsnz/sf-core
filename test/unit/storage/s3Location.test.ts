@@ -1,4 +1,4 @@
-import { isS3Uri, parseS3Uri, resolveS3Endpoint } from '../../../src/storage/s3Location.js';
+import { isS3Uri, parseS3Uri, resolveS3Endpoint, s3Host } from '../../../src/storage/s3Location.js';
 
 describe('parseS3Uri', () => {
   it.each([
@@ -80,5 +80,19 @@ describe('resolveS3Endpoint', () => {
 
   it('rejects an unparseable endpoint', () => {
     expect(() => resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'not a url' })).toThrow();
+  });
+});
+
+describe('s3Host', () => {
+  it('names the virtual-hosted AWS host, bucket first', () => {
+    const ep = resolveS3Endpoint({ AWS_REGION: 'ap-southeast-2' });
+    expect(s3Host('mybucket', ep)).toBe('mybucket.s3.ap-southeast-2.amazonaws.com');
+  });
+
+  it('names the custom endpoint host (path style), port included', () => {
+    expect(s3Host('b', resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'https://acct.r2.cloudflarestorage.com' }))).toBe(
+      'acct.r2.cloudflarestorage.com',
+    );
+    expect(s3Host('b', resolveS3Endpoint({ AWS_ENDPOINT_URL_S3: 'http://localhost:9000' }))).toBe('localhost:9000');
   });
 });

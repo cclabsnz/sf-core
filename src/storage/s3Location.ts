@@ -54,3 +54,14 @@ export function resolveS3Endpoint(env: NodeJS.ProcessEnv): S3Endpoint {
   }
   return { endpoint: custom, region: region ?? 'auto', custom: true };
 }
+
+/**
+ * The host the S3 client actually contacts for `bucket`, for naming network destinations truthfully.
+ * A custom endpoint (R2, MinIO...) is used path-style, so the host is the endpoint's own host.
+ * AWS S3 is used virtual-hosted style, so the bucket is part of the host:
+ * `<bucket>.s3.<region>.amazonaws.com`.
+ */
+export function s3Host(bucket: string, ep: S3Endpoint): string {
+  if (ep.custom) return new URL(ep.endpoint).host;
+  return `${bucket}.s3.${ep.region}.amazonaws.com`;
+}
