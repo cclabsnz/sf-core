@@ -14,7 +14,9 @@ export function parseS3Uri(uri: string): S3Location {
   const slash = rest.indexOf('/');
   const bucket = slash === -1 ? rest : rest.slice(0, slash);
   if (!bucket) throw new Error(`s3:// URI has no bucket: ${uri}`);
-  const prefix = (slash === -1 ? '' : rest.slice(slash + 1)).replace(/^\/+|\/+$/g, '');
+  // Split and drop empty segments rather than trim with a /^\/+|\/+$/ regex: that backtracks
+  // quadratically on a long run of '/', and a prefix is caller input.
+  const prefix = slash === -1 ? '' : rest.slice(slash + 1).split('/').filter(Boolean).join('/');
   return { bucket, prefix };
 }
 

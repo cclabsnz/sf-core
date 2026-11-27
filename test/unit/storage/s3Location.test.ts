@@ -8,8 +8,15 @@ describe('parseS3Uri', () => {
     ['s3://b/p/', 'p'],
     ['s3://b//p', 'p'],
     ['s3://b/a/b/', 'a/b'],
+    ['s3://b/a//b', 'a/b'],
   ])('parses %s', (uri, prefix) => {
     expect(parseS3Uri(uri)).toEqual({ bucket: 'b', prefix });
+  });
+
+  it('parses a prefix of many slashes in linear time', () => {
+    const start = Date.now();
+    expect(parseS3Uri(`s3://b/${'/'.repeat(100_000)}x`)).toEqual({ bucket: 'b', prefix: 'x' });
+    expect(Date.now() - start).toBeLessThan(1000);
   });
 
   it('throws on an empty bucket or a non-s3 URI', () => {
